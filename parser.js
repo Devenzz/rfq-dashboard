@@ -1,0 +1,73 @@
+/* RFQ sheet parser: header-name based, mirrors the Excel dashboard rules */
+const RFQP = (() => {
+  const norm = s => String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const txt = v => (v == null ? '' : String(v)).replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
+  const num = v => {
+    if (typeof v === 'number') return isFinite(v) ? v : 0;
+    if (v == null || typeof v === 'boolean') return 0;
+    const s = String(v).replace(/ /g, '').replace(/₹/g, '').replace(/,/g, '').trim();
+    return s !== '' && !isNaN(+s) ? +s : 0;
+  };
+  const ser = v => {
+    if (typeof v === 'number' && v > 20000 && v < 80000) {
+      const d = new Date(Math.round((v - 25569) * 864e5));
+      return d.toISOString().slice(0, 10);
+    }
+    if (v instanceof Date && !isNaN(v)) return v.toISOString().slice(0, 10);
+    return null;
+  };
+  const PROC = [['investment', 'Investment Casting'], ['steel casting', 'Steel Casting'], ['alumin', 'Aluminium Casting'], ['allumin', 'Aluminium Casting'],
+    ['raw material', 'Raw Material'], ['casting', 'Casting'], ['forging', 'Forging'], ['assembly', 'Assembly'], ['fabrication', 'Fabrication'],
+    ['welding', 'Welding'], ['brought', 'Bought Out'], ['b.o', 'Bought Out']];
+  const OWN = [['sanjeev', 'Sanjeev'], ['sanjay', 'Sanjay'], ['hiren', 'Hiren'], ['jaydeep', 'Jaydeep'], ['keval', 'Keval'], ['ketan', 'Ketan'],
+    ['bhautik', 'Bhautik'], ['bhauitk', 'Bhautik'], ['saurabh', 'Saurabh'], ['rgk', 'RGK Sir'], ['gongane', 'Gongane Sir'], ['piyush', 'Piyush V'],
+    ['kamlesh', 'Kamlesh'], ['manish', 'Manish'], ['manoj', 'Manoj']];
+  const proc = v => { const s = txt(v).toLowerCase(); for (const [k, n] of PROC) if (s.includes(k)) return n; return 'Others'; };
+  const owners = v => { const s = txt(v).toLowerCase(); const o = []; for (const [k, n] of OWN) if (s.includes(k) && !o.includes(n)) o.push(n); return o.length ? o : ['Unassigned']; };
+  const status = v => { const s = txt(v).toLowerCase(); if (s === 'd' || s.includes('regret')) return 'Regret'; if (s.includes('hold')) return 'Hold'; if (s.includes('close') || s.includes('won')) return 'Closed'; return 'Open'; };
+  const grade = v => { const s = txt(v).toUpperCase(); return s.includes('ADI') ? 'ADI' : s.includes('SG') ? 'SG' : s.includes('CI') ? 'CI' : ''; };
+
+  // header keys -> list of accepted normalized header names (first match wins)
+  const COLS = {
+    st: ['status'], cat: ['catagory', 'category'], rt: ['rfq10rfq20'], ed: ['exportdomestic'], c: ['customername'], no: ['rfqno'],
+    ton: ['ton'], d: ['rfqreceiptdate'], t: ['quotationtargatedate', 'quotationtargetdate'], s: ['quotationsentdate'], ow: ['owner'],
+    m: ['matrial', 'material'], pc: ['process'], pt: ['noofparts'], pri: ['priority'], rm: ['remarks'], to: ['expectedyearturnover'],
+    g: ['castinggrade'], al: ['checklist9targetdatealert']
+  };
+  function mapHeaders(h) {
+    const n = h.map(norm), idx = {};
+    for (const k in COLS) { idx[k] = -1; for (const want of COLS[k]) { const i = n.indexOf(want); if (i >= 0) { idx[k] = i; break; } } }
+    if (idx.rt < 0) idx.rt = n.findIndex(x => x.startsWith('rfq10'));
+    if (idx.g < 0 && idx.al >= 0) idx.g = idx.al + 1; // grade sits right after the Checklist #9 column
+    return idx;
+  }
+  const REQUIRED = ['c', 'no', 'd', 's', 'pc'];
+  function parse(header, rows) {
+    const I = mapHeaders(header);
+    const missing = REQUIRED.filter(k => I[k] < 0);
+    if (missing.length) return { error: 'Missing columns: ' + missing.join(', '), recs: [] };
+    const g = (r, k) => (I[k] >= 0 ? r[I[k]] : '');
+    const recs = [];
+    for (const r of rows) {
+      const d = ser(g(r, 'd'));
+      if (!d || txt(g(r, 'no')) === '') continue;
+      const sr = g(r, 's');
+      const rt0 = txt(g(r, 'rt')).toUpperCase();
+      const ed = txt(g(r, 'ed')), edT = ed.charAt(0).toUpperCase() + ed.slice(1).toLowerCase();
+      const pr = txt(g(r, 'pri')), prT = pr.charAt(0).toUpperCase() + pr.slice(1).toLowerCase();
+      const cat = txt(g(r, 'cat')).toUpperCase();
+      recs.push({
+        no: txt(g(r, 'no')).slice(0, 40), d, t: ser(g(r, 't')), s: ser(sr), p: typeof sr === 'string' && sr.trim().toLowerCase() === 'pending',
+        st: status(g(r, 'st')), cat: ['A', 'B', 'C', 'D', 'ND'].includes(cat) ? cat : 'NA',
+        rt: rt0.includes('2.0') ? 'RFQ 2.0' : (rt0.startsWith('RFQ 1') ? 'RFQ 1.0' : 'NA'),
+        ed: ['Export', 'Domestic'].includes(edT) ? edT : 'NA', c: txt(g(r, 'c')) || 'Unknown', ow: owners(g(r, 'ow')), pc: proc(g(r, 'pc')),
+        pt: Math.trunc(num(g(r, 'pt'))), ton: Math.round(num(g(r, 'ton')) * 1e4) / 1e4, to: Math.round(num(g(r, 'to')) * 100) / 100,
+        pri: ['High', 'Medium', 'Low'].includes(prT) ? prT : 'NA', g: grade(g(r, 'g')), m: txt(g(r, 'm')).slice(0, 60), rm: txt(g(r, 'rm')).slice(0, 120)
+      });
+    }
+    return { recs, cols: I };
+  }
+  const yearOf = name => { const m = String(name).match(/^\s*(sub|submitted)\b.*?(\d{4})\s*$/i); return m ? m[2] : null; };
+  return { parse, mapHeaders, yearOf, norm };
+})();
+if (typeof module !== 'undefined') module.exports = RFQP;
