@@ -1,9 +1,17 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<script>
+/* register with Office immediately so the pane opens on the first click */
+window.__officeReady = (window.Office && Office.onReady) ? Office.onReady() : Promise.resolve({host:null});
+window.addEventListener('error', function(e){ var b=document.getElementById('banner'); if(b){ b.hidden=false; b.className='banner err'; b.textContent='Dashboard error: '+(e.message||e); } });
+</script>
+<style>#boot{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;font:500 13px system-ui,sans-serif;color:#4a5868;background:#eef1f4;z-index:99}
+#boot i{width:16px;height:16px;border:2px solid #c9d1da;border-top-color:#256abf;border-radius:50%;animation:sp .8s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-color-scheme:dark){#boot{background:#0e1319;color:#a9b4c0}}</style>
 <title>RFQ Summary Desk</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 :root{
   --bg:#eef1f4;--surface:#ffffff;--surface-2:#f6f8fa;--ink:#14202e;--ink-2:#4a5868;--muted:#7b8794;
@@ -118,6 +126,7 @@ td.bar{background-image:linear-gradient(90deg,var(--accent-soft),var(--accent-so
 @media (max-width:560px){.hdr-r{align-items:flex-start}.hdr-btns{justify-content:flex-start}}
 </style>
 
+<div id="boot"><i></i>Loading RFQ dashboard…</div>
 <header class="band"><div class="wrap">
   <div><div class="eyebrow">Enquiry &amp; RFQ cell · Summary of submitted RFQs</div><h1 id="ttl">RFQ Summary Desk</h1></div>
   <div class="hdr-r"><div class="meta" id="meta"></div>
@@ -649,9 +658,10 @@ function onParentMsg(arg){
 }
 
 // ---------- boot ----------
+document.getElementById('boot')&&document.getElementById('boot').remove();
 if(EMBED){ RAW=EMBED; SHEETS=EMBED_SHEETS; showData(); }
 else if(window.Office){
-  Office.onReady(info=>{
+  window.__officeReady.then(info=>{
     if(MODE==='dialog'){
       setLive('Waiting for data…', true); $('refBtn').hidden=false; $('refBtn').onclick=()=>Office.context.ui.messageParent('refresh');
       Office.context.ui.addHandlerAsync(Office.EventType.DialogParentMessageReceived, onParentMsg, ()=>Office.context.ui.messageParent('ready'));
