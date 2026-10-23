@@ -146,6 +146,7 @@ td.bar{background-image:linear-gradient(90deg,var(--accent-soft),var(--accent-so
   <div class="fld"><label for="f-c">Customer</label><select id="f-c" style="width:200px"></select></div>
   <div class="fld"><label for="f-ow">Owner</label><select id="f-ow"></select></div>
   <div class="fld"><label for="f-pri">Priority</label><select id="f-pri"></select></div>
+  <div class="fld"><label for="f-co">Country</label><select id="f-co"></select></div>
   <button class="btn" id="reset" type="button">Reset filters</button>
   <div class="chips" id="chips"></div>
 </div></section>
@@ -189,6 +190,13 @@ td.bar{background-image:linear-gradient(90deg,var(--accent-soft),var(--accent-so
     <div class="split" id="split"></div>
     <div class="tbl" id="tED"></div></section>
 
+  <section class="panel c5"><h2>Country-wise <small>RFQs submitted · click a bar to filter</small></h2>
+    <div class="chart" id="coBox"><canvas id="chCo" aria-label="RFQs by country"></canvas></div></section>
+  <section class="panel c7"><h2>Country-wise analysis <small>share of RFQs, TON, parts &amp; turnover</small></h2>
+    <div class="tbl scroll" id="tCo"></div>
+    <h2 style="margin-top:6px">India · state-wise <small>domestic RFQs by state (from city / state in the sheet)</small></h2>
+    <div class="tbl scroll" id="tSta" style="max-height:300px"></div></section>
+
   <section class="panel c8"><h2>Customer-wise analysis <small>Click a header to sort · click a row to filter</small></h2>
     <input class="search" id="cSearch" type="search" placeholder="Search customer">
     <div class="tbl scroll" id="tCust"></div></section>
@@ -227,7 +235,7 @@ const CATS = ['A','B','C','D','ND','NA'];
 const PRIS = ['High','Medium','Low','NA'];
 const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-const st = {ds:'',from:'',to:'',ed:'All',rt:'All',pc:'All',c:'All',ow:'All',pri:'All'};
+const st = {ds:'',from:'',to:'',ed:'All',rt:'All',pc:'All',c:'All',ow:'All',pri:'All',co:'All'};
 const sortC = {k:'n',dir:-1};
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
@@ -253,6 +261,7 @@ function setupSelects(){
   opt('f-c',[...new Set(rows.map(r=>r.c))].sort((a,b)=>a.localeCompare(b)),'c');
   opt('f-ow',[...new Set(rows.flatMap(r=>r.ow))].sort(),'ow');
   opt('f-pri',['High','Medium','Low'],'pri');
+  opt('f-co',[...new Set(rows.map(r=>r.co))].sort((a,b)=>a==='Not specified'?1:b==='Not specified'?-1:a.localeCompare(b)),'co');
 }
 function setDataset(ds, keepDates){
   st.ds=ds;
@@ -269,7 +278,7 @@ function filtered(){
     (!st.from || r.d>=st.from) && (!st.to || r.d<=st.to) &&
     (st.ed==='All'||r.ed===st.ed) && (st.rt==='All'||r.rt===st.rt) &&
     (st.pc==='All'||r.pc===st.pc) && (st.c==='All'||r.c===st.c) &&
-    (st.ow==='All'||r.ow.includes(st.ow)) && (st.pri==='All'||r.pri===st.pri));
+    (st.ow==='All'||r.ow.includes(st.ow)) && (st.pri==='All'||r.pri===st.pri) && (st.co==='All'||r.co===st.co));
 }
 function alertOf(r){
   if(!r.t) return 'No target';
@@ -306,11 +315,11 @@ function bar(id, labels, datasets, o={}){
         titleFont:{family:'IBM Plex Sans',weight:'600'},bodyFont:{family:'IBM Plex Sans'},callbacks:o.tip||{}}},
       scales:{x:{stacked:!!o.stack,grid:{display:!!o.h,color:line},border:{display:false},ticks:{color:ink2,font:{family:'IBM Plex Sans',size:11},autoSkip:!o.h,maxRotation:0}},
               y:{stacked:!!o.stack,grid:{display:!o.h,color:line},border:{display:false},beginAtZero:true,ticks:{color:o.h?ink2:muted,font:{family:'IBM Plex Sans',size:11},precision:0,autoSkip:false}}},
-      onClick:o.click?(e,els)=>{ if(els.length) o.click(labels[els[0].index]); }:undefined,
+      onClick:o.click?(e,els)=>{ if(els.length){ const v=labels[els[0].index]; setTimeout(()=>o.click(v),0); } }:undefined,
       onHover:o.click?(e,els)=>{ e.native.target.style.cursor=els.length?'pointer':'default'; }:undefined}});
 }
 
-function setF(k,v){ st[k] = st[k]===v?'All':v; const el=$({pc:'f-pc',c:'f-c',ow:'f-ow',ed:'f-ed',pri:'f-pri',rt:'f-rt'}[k]); if(el) el.value=st[k]; render(); }
+function setF(k,v){ st[k] = st[k]===v?'All':v; const el=$({pc:'f-pc',c:'f-c',ow:'f-ow',ed:'f-ed',pri:'f-pri',rt:'f-rt',co:'f-co'}[k]); if(el) el.value=st[k]; render(); }
 
 function render(){
   const all = filtered();
@@ -323,7 +332,7 @@ function render(){
   const fmtD = s => { if(!s) return '—'; const [y,m,d]=s.split('-'); return `${+d} ${MON[m-1]} ${y}`; };
   const ks=KEYS(); $('ttl').textContent = 'Summary of Submitted RFQ ' + (st.ds==='all'?ks[0]+'–'+ks[ks.length-1]:st.ds);
   $('meta').innerHTML = `${fmtD(st.from)} → ${fmtD(st.to)}<br>Sheet: ${esc(st.ds==='all'?ks.map(k=>SHEETS[k]||k).join(' + '):(SHEETS[st.ds]||st.ds))} · alerts as of ${fmtD(todayStr)}`;
-  const chipMap = {ed:'Type',rt:'RFQ',pc:'Process',c:'Customer',ow:'Owner',pri:'Priority'};
+  const chipMap = {ed:'Type',rt:'RFQ',pc:'Process',c:'Customer',ow:'Owner',pri:'Priority',co:'Country'};
   $('chips').innerHTML = Object.keys(chipMap).filter(k=>st[k]!=='All').map(k=>`<button class="chip" data-k="${k}" type="button">${chipMap[k]}: ${esc(st[k])} ✕</button>`).join('');
   $('chips').querySelectorAll('.chip').forEach(b=>b.onclick=()=>setF(b.dataset.k,st[b.dataset.k]));
 
@@ -399,6 +408,21 @@ function render(){
   const sbar = (lbl,key,fmt)=>{ const tot=sum(erows,r=>r[key]); return `<div class="row"><div class="lbl">${lbl}</div><div class="sbar">${erows.map((r,i)=>{ const w=tot?r[key]/tot*100:0; return w>0?`<span style="flex:${w} 1 0;background:var(${eds[i][1]})" title="${r.name}: ${fmt(r[key])} (${w.toFixed(1)}%)">${w>=12?w.toFixed(0)+'%':''}</span>`:''; }).join('')||'<span style="flex:1;background:var(--line)"></span>'}</div></div>`; };
   $('split').innerHTML = sbar('RFQs','n',N0)+sbar('TON','ton',N2)+sbar('Turnover','to',INR);
   table('tED',[{k:'name',l:'Type'},{k:'n',l:'RFQs',f:N0},{k:'ton',l:'TON',f:N2},{k:'pt',l:'Parts',f:N0},{k:'to',l:'Exp. year turnover',f:INR}], erows.filter(r=>r.n), {total:{name:'Total',...A}});
+
+  // Country
+  const cgrp={}; sub.forEach(r=>{ (cgrp[r.co]=cgrp[r.co]||[]).push(r); });
+  const corows=Object.entries(cgrp).map(([name,L])=>{ const a=agg(L); return {name,...a,ex:L.filter(r=>r.ed==='Export').length,dm:L.filter(r=>r.ed==='Domestic').length,sh:a.n/(A.n||1),tsh:A.to?a.to/A.to:0}; })
+    .sort((a,b)=>(a.name==='Not specified')-(b.name==='Not specified')||b.n-a.n);
+  $('coBox').style.height=Math.max(220,corows.length*28+40)+'px';
+  bar('chCo', corows.map(r=>r.name), [{label:'RFQs',data:corows.map(r=>r.n),backgroundColor:corows.map(r=>r.name==='Not specified'?css('--muted'):(st.co==='All'||st.co===r.name?css('--s3'):css('--line-2')))}],
+    {h:true,thick:20,click:v=>setF('co',v),tip:{afterLabel:c=>{ const r=corows[c.dataIndex]; return `TON ${N2(r.ton)} · ${INRs(r.to)}`; }}});
+  table('tCo',[{k:'name',l:'Country'},{k:'n',l:'RFQs',f:N0,bar:1},{k:'sh',l:'% RFQ',f:P},{k:'ex',l:'Export',f:N0},{k:'dm',l:'Domestic',f:N0},{k:'ton',l:'TON',f:N2},{k:'pt',l:'Parts',f:N0},{k:'hi',l:'High prio',f:N0},{k:'to',l:'Exp. turnover',f:INRs},{k:'tsh',l:'Turnover %',f:P}],
+    corows,{click:v=>setF('co',v),total:{name:'Total',...A,sh:A.n?1:0,tsh:A.to?1:0,ex:sub.filter(r=>r.ed==='Export').length,dm:sub.filter(r=>r.ed==='Domestic').length}});
+  const ind=sub.filter(r=>r.co==='India'), sg={}; ind.forEach(r=>{ const k=r.sta||'Not specified'; (sg[k]=sg[k]||[]).push(r); });
+  const strows=Object.entries(sg).map(([name,L])=>{ const a=agg(L); return {name,...a,cities:[...new Set(L.map(r=>r.loc).filter(x=>x&&x.toUpperCase()!==name.toUpperCase()))].join(', ')||'—'}; })
+    .sort((a,b)=>(a.name==='Not specified')-(b.name==='Not specified')||b.n-a.n);
+  table('tSta',[{k:'name',l:'State'},{k:'cities',l:'Cities in sheet',f:v=>esc(v)},{k:'n',l:'RFQs',f:N0,bar:1},{k:'ton',l:'TON',f:N2},{k:'pt',l:'Parts',f:N0},{k:'to',l:'Exp. turnover',f:INRs}],
+    strows,{total:ind.length?{name:'Total India',cities:'',...agg(ind)}:null});
 
   // Customers
   renderCust(sub);
@@ -537,14 +561,14 @@ function renderCust(sub){
   if(sub) lastSub=sub; sub=lastSub;
   const q=$('cSearch').value.trim().toLowerCase();
   const by={}; sub.forEach(r=>{ (by[r.c]=by[r.c]||[]).push(r); });
-  let rows=Object.entries(by).map(([name,L])=>{ const a=agg(L); return {name,...a,conv:sum(L.filter(r=>r.st==='Closed'),x=>x.to),share:0}; });
+  let rows=Object.entries(by).map(([name,L])=>{ const a=agg(L); return {name,...a,conv:sum(L,x=>x.cv),share:0}; });
   const T=agg(sub); rows.forEach(r=>r.share=T.to?r.to/T.to:0);
   if(q) rows=rows.filter(r=>r.name.toLowerCase().includes(q));
   const k=sortC.k; rows.sort((a,b)=> k==='name'? sortC.dir*a.name.localeCompare(b.name) : sortC.dir*((a[k]||0)-(b[k]||0)));
   table('tCust',[{k:'name',l:'Customer'},{k:'n',l:'RFQs',f:N0,bar:1},{k:'ton',l:'TON',f:N2},{k:'pt',l:'Parts',f:N0},{k:'hi',l:'High prio',f:N0},{k:'avg',l:'Avg TON',f:N2},
     {k:'to',l:'Exp. year turnover',f:INR},{k:'share',l:'Turnover %',f:P},{k:'conv',l:'Converted turnover',f:v=>v?INR(v):'<span style="color:var(--muted)">—</span>'}], rows,
     {sortable:true,sort:sortC,onSort:kk=>{ sortC.dir = sortC.k===kk?-sortC.dir:(kk==='name'?1:-1); sortC.k=kk; renderCust(); },
-     click:v=>setF('c',v), total:q?null:{name:`Total · ${rows.length} customers`,...T,share:T.to?1:0,conv:sum(sub.filter(r=>r.st==='Closed'),x=>x.to)}});
+     click:v=>setF('c',v), total:q?null:{name:`Total · ${rows.length} customers`,...T,share:T.to?1:0,conv:sum(sub,x=>x.cv)}});
 }
 function renderReg(all){
   if(all) lastAll=all; all=lastAll;
@@ -557,7 +581,7 @@ function renderReg(all){
   table('tReg',[{k:'no',l:'RFQ no',f:v=>`<span class="mono">${esc(v)}</span>`},{k:'c',l:'Customer'},{k:'d',l:'Received',f:fd},{k:'t',l:'Target',f:fd},
     {k:'s',l:'Quote sent',f:(v,r)=>r.p?'<span class="pill p-warn">Pending</span>':fd(v)},
     {k:'al',l:'Alert',f:v=>`<span class="pill ${acl[v]}">${v==='Open'?'Within target':v}</span>`},
-    {k:'pc',l:'Process'},{k:'ed',l:'Type'},{k:'rt',l:'RFQ'},{k:'ton',l:'TON',f:N2},{k:'pt',l:'Parts',f:N0},{k:'to',l:'Exp. turnover',f:INR},
+    {k:'pc',l:'Process'},{k:'ed',l:'Type'},{k:'co',l:'Country'},{k:'rt',l:'RFQ'},{k:'ton',l:'TON',f:N2},{k:'pt',l:'Parts',f:N0},{k:'to',l:'Exp. turnover',f:INR},
     {k:'owj',l:'Owner'},{k:'st',l:'Status'}],
     rows.slice(0,300).map(r=>({...r,name:r.no,al:alertOf(r),owj:r.ow.join(', ')})));
 }
@@ -565,8 +589,8 @@ function renderReg(all){
 // wiring
 $('from').onchange=e=>{ st.from=e.target.value; render(); };
 $('to').onchange=e=>{ st.to=e.target.value; render(); };
-[['f-ed','ed'],['f-rt','rt'],['f-pc','pc'],['f-c','c'],['f-ow','ow'],['f-pri','pri']].forEach(([id,k])=>$(id).onchange=e=>{ st[k]=e.target.value; render(); });
-$('reset').onclick=()=>{ Object.assign(st,{ed:'All',rt:'All',pc:'All',c:'All',ow:'All',pri:'All'}); setDataset(st.ds); render(); };
+[['f-ed','ed'],['f-rt','rt'],['f-pc','pc'],['f-c','c'],['f-ow','ow'],['f-pri','pri'],['f-co','co']].forEach(([id,k])=>$(id).onchange=e=>{ st[k]=e.target.value; render(); });
+$('reset').onclick=()=>{ Object.assign(st,{ed:'All',rt:'All',pc:'All',c:'All',ow:'All',pri:'All',co:'All'}); setDataset(st.ds); render(); };
 $('cSearch').oninput=()=>renderCust();
 $('rSearch').oninput=()=>renderReg();
 const rerender=()=>{ if(started) render(); };

@@ -32,7 +32,7 @@ const RFQP = (() => {
     st: ['status'], cat: ['catagory', 'category'], rt: ['rfq10rfq20'], ed: ['exportdomestic'], c: ['customername'], no: ['rfqno'],
     ton: ['ton'], d: ['rfqreceiptdate'], t: ['quotationtargatedate', 'quotationtargetdate'], s: ['quotationsentdate'], ow: ['owner'],
     m: ['matrial', 'material'], pc: ['process'], pt: ['noofparts'], pri: ['priority'], rm: ['remarks'], to: ['expectedyearturnover'],
-    g: ['castinggrade'], al: ['checklist9targetdatealert']
+    g: ['castinggrade'], al: ['checklist9targetdatealert'], loc: ['countrystate', 'country'], cv: ['convertedturnover']
   };
   function mapHeaders(h) {
     const n = h.map(norm), idx = {};
@@ -40,6 +40,26 @@ const RFQP = (() => {
     if (idx.rt < 0) idx.rt = n.findIndex(x => x.startsWith('rfq10'));
     if (idx.g < 0 && idx.al >= 0) idx.g = idx.al + 1; // grade sits right after the Checklist #9 column
     return idx;
+  }
+    // ---- country / state ----
+  const CTRY = { USA: 'USA', US: 'USA', 'UNITED STATES': 'USA', AMERICA: 'USA', UK: 'UK', ENGLAND: 'UK', 'UNITED KINGDOM': 'UK', IRLAND: 'Ireland', IRELAND: 'Ireland',
+    IZMIR: 'Turkey', TURKEY: 'Turkey', INDIA: 'India' };
+  const STATE = { FARIDABAD: 'Haryana', GURGAON: 'Haryana', GURUGRAM: 'Haryana', COIMBATORE: 'Tamil Nadu', CHENNAI: 'Tamil Nadu', TAMILNADU: 'Tamil Nadu', 'TAMIL NADU': 'Tamil Nadu',
+    PUNE: 'Maharashtra', MUMBAI: 'Maharashtra', NASIK: 'Maharashtra', NASHIK: 'Maharashtra', MAHARASHTRA: 'Maharashtra', AURANGABAD: 'Maharashtra', NAGPUR: 'Maharashtra',
+    AHMEDABAD: 'Gujarat', SURAT: 'Gujarat', GANDHINAGAR: 'Gujarat', RAJKOT: 'Gujarat', VADODARA: 'Gujarat', BARODA: 'Gujarat', GUJARAT: 'Gujarat',
+    BANGLORE: 'Karnataka', BANGALORE: 'Karnataka', BENGALURU: 'Karnataka', KARNATAKA: 'Karnataka', KOLKATA: 'West Bengal', 'WEST BENGAL': 'West Bengal',
+    DELHI: 'Delhi', 'NEW DELHI': 'Delhi', NOIDA: 'Uttar Pradesh', 'UTTAR PRADESH': 'Uttar Pradesh', RAJASTHAN: 'Rajasthan', ALWAR: 'Rajasthan', JAIPUR: 'Rajasthan',
+    'MADHYA PRADESH': 'Madhya Pradesh', INDORE: 'Madhya Pradesh', HYDERABAD: 'Telangana', TELANGANA: 'Telangana', PUNJAB: 'Punjab', LUDHIANA: 'Punjab' };
+  const tc = s => s.toLowerCase().replace(/\b[a-z]/g, m => m.toUpperCase());
+  function place(raw, ed) {
+    const s = txt(raw), u = s.toUpperCase();
+    if (!s || u === 'NA' || u === '-' ) return ed === 'Domestic' ? { co: 'India', sta: 'Not specified' } : { co: 'Not specified', sta: '' };
+    if (CTRY[u] && CTRY[u] !== 'India') return { co: CTRY[u], sta: '' };
+    if (u === 'INDIA') return { co: 'India', sta: 'Not specified' };
+    const parts = u.split(',').map(x => x.trim());
+    for (const x of parts.slice().reverse()) if (STATE[x]) return { co: 'India', sta: STATE[x] };
+    if (ed === 'Domestic') return { co: 'India', sta: tc(s) };
+    return { co: u.length <= 3 ? u : tc(s), sta: '' };
   }
   const REQUIRED = ['c', 'no', 'd', 's', 'pc'];
   function parse(header, rows) {
@@ -64,6 +84,9 @@ const RFQP = (() => {
         pt: Math.trunc(num(g(r, 'pt'))), ton: Math.round(num(g(r, 'ton')) * 1e4) / 1e4, to: Math.round(num(g(r, 'to')) * 100) / 100,
         pri: ['High', 'Medium', 'Low'].includes(prT) ? prT : 'NA', g: grade(g(r, 'g')), m: txt(g(r, 'm')).slice(0, 60), rm: txt(g(r, 'rm')).slice(0, 120)
       });
+      const rec = recs[recs.length - 1], pl = place(g(r, 'loc'), rec.ed);
+      rec.co = pl.co; rec.sta = pl.sta; rec.loc = txt(g(r, 'loc'));
+      rec.cv = I.cv >= 0 ? Math.round(num(g(r, 'cv')) * 100) / 100 : (rec.st === 'Closed' ? rec.to : 0);
     }
     return { recs, cols: I };
   }
