@@ -1,725 +1,1211 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
-<script>
-/* register with Office immediately so the pane opens on the first click */
-window.__officeReady = (window.Office && Office.onReady) ? Office.onReady() : Promise.resolve({host:null});
-window.addEventListener('error', function(e){ var b=document.getElementById('banner'); if(b){ b.hidden=false; b.className='banner err'; b.textContent='Dashboard error: '+(e.message||e); } });
+<script>window.__officeReady = window.Office && Office.onReady ? Office.onReady() : Promise.resolve({ host: null });
+window.__step = "starting";
+window.__started = false;
+function __unboot() {
+  var b = document.getElementById("boot");
+  if (b && b.parentNode) b.parentNode.removeChild(b);
+}
+function __err(msg) {
+  __unboot();
+  var b = document.getElementById("banner");
+  if (b) {
+    b.hidden = false;
+    b.className = "banner err";
+    b.textContent = "Dashboard error: " + msg + " (step: " + window.__step + "). Send this message to support.";
+  }
+}
+window.addEventListener("error", function(e) {
+  __err(e.message || String(e));
+});
+window.addEventListener("unhandledrejection", function(e) {
+  var r = e.reason;
+  __err(r && (r.message || r.code) || String(r));
+});
+setTimeout(function() {
+  if (!window.__started) {
+    __unboot();
+    var b = document.getElementById("banner");
+    if (b && b.hidden) {
+      b.hidden = false;
+      b.className = "banner err";
+      b.textContent = "Still loading after 25 seconds. Last step: " + window.__step + ". Press Refresh Data, or close and reopen the add-in. If it stays here, send this message to support.";
+    }
+  }
+}, 25e3);
 </script>
-<style>#boot{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;font:500 13px system-ui,sans-serif;color:#4a5868;background:#eef1f4;z-index:99}
-#boot i{width:16px;height:16px;border:2px solid #c9d1da;border-top-color:#256abf;border-radius:50%;animation:sp .8s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
-@media (prefers-color-scheme:dark){#boot{background:#0e1319;color:#a9b4c0}}</style>
-<title>RFQ Summary Desk</title>
+<style>#boot{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;font:500 13px system-ui,sans-serif;color:#4a5070;background:#eef0f6;z-index:99}
+#boot i{width:16px;height:16px;border:2px solid #cbd0e2;border-top-color:#4338ca;border-radius:50%;animation:sp .8s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-color-scheme:dark){#boot{background:#0c0e1c;color:#aab0cc}}</style>
+<title>NX Parts Status</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 :root{
-  --bg:#eef1f4;--surface:#ffffff;--surface-2:#f6f8fa;--ink:#14202e;--ink-2:#4a5868;--muted:#7b8794;
-  --line:#dde3ea;--line-2:#c9d1da;--accent:#256abf;--accent-soft:#e3edf9;--band:#16222f;--band-ink:#e9eef3;
-  --s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s7:#4a3aa7;
-  --good:#16804b;--good-bg:#e2f3ea;--warn:#a86b00;--warn-bg:#fbf0d9;--bad:#c53030;--bad-bg:#fbe5e5;--hold-bg:#eceff3;
-  --shadow:0 1px 2px rgba(20,32,46,.06);
-  --f-ui:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-  --f-num:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --bg:#eef0f6;--surface:#ffffff;--surface-2:#f5f6fb;--ink:#151a33;--ink-2:#4a5070;--muted:#7d839e;--line:#dfe2ee;--line-2:#cbd0e2;
+  --accent:#4338ca;--accent-ink:#ffffff;--accent-soft:#e7e8fb;--band:#141838;--band-ink:#e9eaf7;
+  --p1:#2a78d6;--p2:#eb6834;
+  --g1:#8a93b8;--g2:#86b6ef;--g3:#eda100;--g4:#1a9a5c;--g5:#b4b9cc;
+  --good:#127a4a;--good-bg:#def3e8;--warn:#9a6200;--warn-bg:#fbf0d6;--bad:#c02f2f;--bad-bg:#fbe3e3;--info:#2a5fb8;--info-bg:#e2ecfb;--neutral-bg:#eceef5;
+  --shadow:0 1px 2px rgba(21,26,51,.06),0 4px 14px rgba(21,26,51,.04);
+  --f-ui:"Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-num:"Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
-  --bg:#0e1319;--surface:#161d25;--surface-2:#1b232d;--ink:#e8edf2;--ink-2:#a9b4c0;--muted:#7d8896;
-  --line:#26303b;--line-2:#34404d;--accent:#5598e7;--accent-soft:#1a2a3d;--band:#0a0f14;--band-ink:#e8edf2;
-  --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s7:#9085e9;
-  --good:#4cc38a;--good-bg:#12291f;--warn:#e0a53a;--warn-bg:#2d2412;--bad:#f07070;--bad-bg:#321a1a;--hold-bg:#222b35;--shadow:none}}
+  --bg:#0c0e1c;--surface:#14172b;--surface-2:#1a1e36;--ink:#e8e9f6;--ink-2:#aab0cc;--muted:#7a809e;--line:#252a45;--line-2:#323858;
+  --accent:#8b93f5;--accent-ink:#0f1230;--accent-soft:#232857;--band:#080a16;--band-ink:#e8e9f6;
+  --p1:#3987e5;--p2:#d95926;
+  --g1:#6d7596;--g2:#5f9ce8;--g3:#c98500;--g4:#2fae6e;--g5:#4a5070;
+  --good:#4cc38a;--good-bg:#10291d;--warn:#e0a53a;--warn-bg:#2c2311;--bad:#f07070;--bad-bg:#321a1a;--info:#8db6f2;--info-bg:#17284a;--neutral-bg:#20243d;--shadow:none}}
 :root[data-theme="dark"]{color-scheme:dark;
-  --bg:#0e1319;--surface:#161d25;--surface-2:#1b232d;--ink:#e8edf2;--ink-2:#a9b4c0;--muted:#7d8896;
-  --line:#26303b;--line-2:#34404d;--accent:#5598e7;--accent-soft:#1a2a3d;--band:#0a0f14;--band-ink:#e8edf2;
-  --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s7:#9085e9;
-  --good:#4cc38a;--good-bg:#12291f;--warn:#e0a53a;--warn-bg:#2d2412;--bad:#f07070;--bad-bg:#321a1a;--hold-bg:#222b35;--shadow:none}
+  --bg:#0c0e1c;--surface:#14172b;--surface-2:#1a1e36;--ink:#e8e9f6;--ink-2:#aab0cc;--muted:#7a809e;--line:#252a45;--line-2:#323858;
+  --accent:#8b93f5;--accent-ink:#0f1230;--accent-soft:#232857;--band:#080a16;--band-ink:#e8e9f6;
+  --p1:#3987e5;--p2:#d95926;
+  --g1:#6d7596;--g2:#5f9ce8;--g3:#c98500;--g4:#2fae6e;--g5:#4a5070;
+  --good:#4cc38a;--good-bg:#10291d;--warn:#e0a53a;--warn-bg:#2c2311;--bad:#f07070;--bad-bg:#321a1a;--info:#8db6f2;--info-bg:#17284a;--neutral-bg:#20243d;--shadow:none}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--f-ui);margin:0}
-.wrap{max-width:1440px;margin:0 auto;padding-inline:20px;padding-block:0 40px}
+.wrap{max-width:1500px;margin:0 auto;padding-inline:20px}
+button{font-family:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 header.band{background:var(--band);color:var(--band-ink)}
-header.band .wrap{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px;padding-block:18px 16px}
-.eyebrow{font:500 11px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;opacity:.7}
-h1{font:700 30px/1.05 var(--f-num);letter-spacing:.01em;margin:6px 0 0;text-wrap:balance}
-.band .meta{font:12px/1.4 var(--f-mono);opacity:.75;text-align:right}
-.filters{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--line);box-shadow:var(--shadow)}
-.filters .wrap{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:flex-end;padding-block:10px}
+header.band .wrap{display:flex;flex-wrap:wrap;gap:14px 24px;align-items:flex-end;justify-content:space-between;padding-block:18px 16px}
+.eyebrow{font:500 11px/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;opacity:.7}
+h1{font:700 32px/1.02 var(--f-num);letter-spacing:.03em;margin:6px 0 2px;text-wrap:balance}
+.sub{font-size:13px;opacity:.75}
+.hdr-r{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.hdr-btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end}
+.upd{font:500 12px var(--f-mono);opacity:.85;text-align:right}
+.tbtn{font:600 12.5px var(--f-ui);height:32px;padding:0 12px;border-radius:7px;border:1px solid rgba(233,234,247,.25);background:rgba(233,234,247,.06);color:var(--band-ink);cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+.tbtn:hover{background:rgba(233,234,247,.14)}
+.tbtn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.tbtn[aria-pressed="true"]{background:var(--band-ink);color:var(--band)}
+.tbtn svg{width:15px;height:15px;flex:none}
+.tbtn.spin svg{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:80;padding:10px 14px;border-radius:8px;font:600 13px var(--f-ui);box-shadow:0 6px 24px rgba(0,0,0,.18);background:var(--band);color:var(--band-ink);max-width:calc(100% - 32px)}
+.toast.ok{background:var(--good);color:#fff}.toast.err{background:var(--bad);color:#fff}
+.filters{background:var(--surface);border-bottom:1px solid var(--line);box-shadow:var(--shadow);position:sticky;top:env(safe-area-inset-top,0px);z-index:30}
+.fbar{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:flex-end;padding-block:10px}
 .fld{display:flex;flex-direction:column;gap:3px;min-width:0}
-.fld label{font:500 10.5px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.fld select,.fld input{font:500 13px var(--f-ui);color:var(--ink);background:var(--surface-2);border:1px solid var(--line-2);border-radius:6px;padding:6px 8px;height:32px;max-width:100%}
-.fld select:focus,.fld input:focus,button:focus-visible,th[data-k]:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.seg{display:inline-flex;border:1px solid var(--line-2);border-radius:6px;overflow:hidden;height:32px}
+.fld label,.lbl{font:500 10.5px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.fld select,.fld input,.ctl{font:500 13px var(--f-ui);color:var(--ink);background:var(--surface-2);border:1px solid var(--line-2);border-radius:7px;padding:5px 8px;height:32px;max-width:100%}
+.fld select{width:170px}.gs input{width:240px}
+.seg{display:inline-flex;border:1px solid var(--line-2);border-radius:7px;overflow:hidden;height:32px}
 .seg button{font:600 12.5px var(--f-ui);background:var(--surface-2);color:var(--ink-2);border:0;padding:0 12px;cursor:pointer;border-right:1px solid var(--line-2)}
 .seg button:last-child{border-right:0}
-.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
-.btn{font:600 12.5px var(--f-ui);height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);background:transparent;color:var(--ink-2);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.btn{font:600 12.5px var(--f-ui);height:32px;padding:0 12px;border-radius:7px;border:1px solid var(--line-2);background:transparent;color:var(--ink-2);cursor:pointer}
 .btn:hover{border-color:var(--accent);color:var(--accent)}
-.chips{display:flex;flex-wrap:wrap;gap:6px;flex-basis:100%}
-.chip{font:500 11.5px var(--f-ui);background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:2px 10px;border:0;cursor:pointer}
-.chip:empty{display:none}
-main.wrap{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px;padding-top:18px}
-.kpis{grid-column:1/-1;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
-.kpi{background:var(--surface);padding:12px 14px 10px;display:flex;flex-direction:column;gap:2px;min-width:0}
-.kpi .k{font:500 10.5px/1.2 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.kpi .v{font:600 30px/1.05 var(--f-num);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.kpi .s{font-size:11.5px;color:var(--ink-2)}
-.kpi.hero{background:var(--accent-soft);grid-column:span 2}
-.kpi.won{background:var(--good-bg)}.kpi.won .v{color:var(--good)}
-.chip.fixedchip{cursor:default;background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line)}.chip.warnchip{background:var(--warn-bg);color:var(--warn);border-color:transparent}
-.seg.pm button[data-v="pend"][aria-pressed="true"]{background:var(--warn);color:#fff}
-.fld input:disabled{opacity:.45;cursor:not-allowed}
-.kpi.hero .v{color:var(--accent)}
-.kpi.warn .v{color:var(--warn)}
-.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px 16px;min-width:0;display:flex;flex-direction:column;gap:10px}
-.panel h2{font:600 19px/1.1 var(--f-num);letter-spacing:.02em;text-transform:uppercase;margin:0;display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
-.panel h2 small{font:400 11.5px var(--f-ui);text-transform:none;letter-spacing:0;color:var(--muted)}
+.btn.sm{height:28px;padding:0 10px;font-size:12px}
+.summary{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12.5px;color:var(--ink-2)}
+.summary b{color:var(--ink)}
+.chip{display:inline-flex;align-items:center;gap:6px;font:500 12px var(--f-ui);background:var(--accent-soft);color:var(--ink);border:1px solid transparent;border-radius:999px;padding:3px 10px;cursor:pointer}
+.chip span{color:var(--muted)}
+.chip.fixed{cursor:default;background:var(--surface-2);border-color:var(--line)}
+main.wrap{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px;padding-block:18px 48px}
 .c12{grid-column:span 12}.c8{grid-column:span 8}.c7{grid-column:span 7}.c6{grid-column:span 6}.c5{grid-column:span 5}.c4{grid-column:span 4}
-.chart{position:relative;height:260px}
-.chart.tall{height:320px}
-.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
-.tbl.scroll{max-height:440px;overflow-y:auto}
+.banner{grid-column:1/-1;border:1px solid var(--line-2);border-radius:10px;background:var(--surface);padding:12px 16px;font-size:13.5px}
+.banner.err{border-color:var(--bad);background:var(--bad-bg);color:var(--bad)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px 16px;min-width:0;display:flex;flex-direction:column;gap:10px;box-shadow:var(--shadow)}
+.panel h2{font:700 19px/1.1 var(--f-num);letter-spacing:.04em;text-transform:uppercase;margin:0;display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.panel h2 small{font:400 12px var(--f-ui);text-transform:none;letter-spacing:0;color:var(--muted)}
+.ph{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.note{font-size:12px;color:var(--muted);margin:0}
+.chart{position:relative;height:280px}
+.kpis{grid-column:1/-1;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:13px 16px;display:flex;flex-direction:column;gap:3px;min-width:0;box-shadow:var(--shadow);text-align:left;color:inherit;font:inherit}
+button.kpi{cursor:pointer}button.kpi:hover{border-color:var(--accent)}
+.kpi[aria-pressed="true"]{outline:2px solid var(--accent);outline-offset:-1px}
+.kpi .k{font:500 10.5px/1.25 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:7px}
+.kpi .k i{width:9px;height:9px;border-radius:50%;background:var(--c,var(--muted))}
+.kpi .v{font:700 34px/1.05 var(--f-num);font-variant-numeric:tabular-nums}
+.kpi .s{font-size:12px;color:var(--ink-2)}
+.kpi.hero{background:var(--band);border-color:var(--band);color:var(--band-ink)}
+.kpi.hero .k,.kpi.hero .s{color:var(--band-ink);opacity:.78}
+.pipe{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.pipe button{all:unset;cursor:pointer;padding:12px 14px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:4px;position:relative;background:var(--surface)}
+.pipe button:last-child{border-right:0}
+.pipe button:hover{background:var(--surface-2)}
+.pipe button[aria-pressed="true"]{background:var(--accent-soft)}
+.pipe button::before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:var(--c)}
+.pipe b{font:700 28px/1 var(--f-num);font-variant-numeric:tabular-nums}
+.pipe span{font:600 12px var(--f-ui);color:var(--ink-2)}
+.pipe small{font-size:11px;color:var(--muted)}
+.tbl{overflow:auto;border:1px solid var(--line);border-radius:9px}
+.tbl.scroll{max-height:460px}
 table{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-numeric:tabular-nums}
-th{position:sticky;top:0;background:var(--surface-2);color:var(--ink-2);font:600 10.5px/1.25 var(--f-mono);letter-spacing:.04em;text-transform:uppercase;text-align:right;padding:8px 10px;border-bottom:1px solid var(--line-2);white-space:nowrap;z-index:1}
-th:first-child,td:first-child{text-align:left}
-th[data-k]{cursor:pointer;user-select:none}
-th[data-k]:hover{color:var(--accent)}
-th .arr{color:var(--accent)}
-td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
-td:first-child{white-space:normal;min-width:150px}
-tr:last-child td{border-bottom:0}
+th{position:sticky;top:0;background:var(--surface-2);color:var(--ink-2);font:600 10.5px/1.25 var(--f-mono);letter-spacing:.04em;text-transform:uppercase;text-align:left;padding:8px 10px;border-bottom:1px solid var(--line-2);white-space:nowrap;z-index:2}
+th.n,td.n{text-align:right}
+td{padding:6px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+td.nw{white-space:nowrap}
+td.wr{min-width:220px;max-width:360px}
 tbody tr:hover td{background:var(--surface-2)}
 tr.clk{cursor:pointer}
-tr.tot td{font-weight:600;background:var(--surface-2);border-top:1px solid var(--line-2)}
-td.bar{background-image:linear-gradient(90deg,var(--accent-soft),var(--accent-soft));background-repeat:no-repeat;background-position:right center}
+tr.tot td{font-weight:700;background:var(--surface-2);border-top:1px solid var(--line-2)}
+th.sortable{cursor:pointer;user-select:none}th.sortable:hover{color:var(--accent)}
+th .arr{color:var(--accent)}
 .pill{display:inline-flex;align-items:center;gap:6px;font:600 11.5px var(--f-ui);border-radius:999px;padding:2px 9px;white-space:nowrap}
-.pill i{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}
-.p-good{color:var(--good);background:var(--good-bg)}.p-warn{color:var(--warn);background:var(--warn-bg)}.p-bad{color:var(--bad);background:var(--bad-bg)}.p-hold{color:var(--ink-2);background:var(--hold-bg)}.p-info{color:var(--accent);background:var(--accent-soft)}
-.split{display:flex;flex-direction:column;gap:12px}
-.split .row{display:grid;grid-template-columns:110px 1fr;gap:10px;align-items:center}
-.split .lbl{font:500 11px var(--f-mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
-.sbar{display:flex;height:26px;border-radius:5px;overflow:hidden;gap:2px;background:var(--surface)}
-.sbar span{display:flex;align-items:center;padding:0 8px;font:600 11.5px var(--f-ui);color:#fff;white-space:nowrap;overflow:hidden;min-width:0}
+.pill i{width:7px;height:7px;border-radius:50%;background:currentColor}
+.t-good{color:var(--good);background:var(--good-bg)}.t-warn{color:var(--warn);background:var(--warn-bg)}.t-bad{color:var(--bad);background:var(--bad-bg)}.t-info{color:var(--info);background:var(--info-bg)}.t-neu{color:var(--ink-2);background:var(--neutral-bg)}
+.proj{font:600 11px var(--f-mono);letter-spacing:.04em;padding:2px 7px;border-radius:5px;white-space:nowrap;color:#fff}
+.proj.et{background:var(--p1)}.proj.an{background:var(--p2)}
+.thumb{width:54px;height:40px;border-radius:6px;background:var(--surface-2) center/contain no-repeat;border:1px solid var(--line);display:block}
+.thumb.none{background:repeating-linear-gradient(45deg,var(--surface-2),var(--surface-2) 6px,var(--line) 6px,var(--line) 7px)}
+.flag{font:700 10px var(--f-mono);letter-spacing:.06em;color:var(--bad);margin-left:6px;white-space:nowrap}
+.flag.hi{color:var(--warn)}
+.mono{font-family:var(--f-mono);font-size:12px}
 .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--ink-2)}
 .legend b{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
-.note{font-size:11.5px;color:var(--muted);margin:0}
-.search{font:13px var(--f-ui);height:30px;padding:0 10px;border:1px solid var(--line-2);border-radius:6px;background:var(--surface-2);color:var(--ink);width:240px;max-width:100%}
-.empty{padding:24px;text-align:center;color:var(--muted)}
-.mono{font-family:var(--f-mono);font-size:11.5px}
-@media (max-width:1100px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.c8,.c7,.c6,.c5,.c4{grid-column:span 12}}
-@media (max-width:560px){.filters{position:static}.eyebrow{white-space:normal}.wrap{padding-inline:16px}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.kpi .v{font-size:26px}.kpi.hero .v{font-size:30px}h1{font-size:24px}.band .meta{text-align:left}.fld{flex:1 1 44%}.fld select,.fld input{width:100%}}
-@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
-
-[hidden]{display:none!important}
-.hdr-r{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
-.hdr-btns{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;align-items:center}
-.tbtn{font:600 12px var(--f-ui);height:30px;padding:0 12px;border-radius:6px;border:1px solid rgba(233,238,243,.28);background:rgba(233,238,243,.06);color:var(--band-ink);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
-.tbtn:hover{background:rgba(233,238,243,.14)}
-.tbtn svg{width:14px;height:14px}
-.live{font:500 11px var(--f-mono);letter-spacing:.04em;color:var(--band-ink);opacity:.85;display:inline-flex;align-items:center;gap:6px}
-.live i{width:8px;height:8px;border-radius:50%;background:#3ccf7e;box-shadow:0 0 0 3px rgba(60,207,126,.25)}
-.live.busy i{background:#e0a53a;box-shadow:0 0 0 3px rgba(224,165,58,.25)}
-.banner{grid-column:1/-1;border:1px solid var(--line-2);border-radius:10px;background:var(--surface);padding:14px 16px;font-size:13.5px}
-.banner.err{border-color:var(--bad);background:var(--bad-bg);color:var(--bad)}
-.chart.donut{height:230px}
-.proj{display:flex;flex-direction:column;gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden}
-.proj div{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line)}
-.proj div:last-child{border-bottom:0}
-.proj span{color:var(--ink-2);font-size:12.5px}
-.proj b{font:600 20px/1 var(--f-num);font-variant-numeric:tabular-nums;white-space:nowrap}
-.proj small{display:block;font:400 11px var(--f-ui);color:var(--muted);text-align:right}
-.fc-tag{font:600 10px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--warn);background:var(--warn-bg);border-radius:4px;padding:2px 6px}
-@media (max-width:560px){.hdr-r{align-items:flex-start}.hdr-btns{justify-content:flex-start}}
+.empty{padding:22px;text-align:center;color:var(--muted)}
+details.hid summary{cursor:pointer;font:600 13px var(--f-ui);color:var(--ink-2);list-style:none}
+details.hid summary::-webkit-details-marker{display:none}
+details.hid summary::before{content:"▸ ";color:var(--accent)}
+details.hid[open] summary::before{content:"▾ "}
+.drawer{position:fixed;inset:0;z-index:70;display:flex;justify-content:flex-end;background:rgba(6,8,20,.45)}
+.drawer .pane{width:min(560px,100%);height:100%;background:var(--surface);overflow:auto;padding:18px 20px calc(24px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px;box-shadow:-10px 0 30px rgba(0,0,0,.2)}
+.drawer h3{font:700 24px/1.1 var(--f-num);margin:0;letter-spacing:.02em}
+.bigimg{width:100%;max-height:300px;object-fit:contain;border-radius:10px;border:1px solid var(--line);background:var(--surface-2)}
+.kv{display:grid;grid-template-columns:170px 1fr;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.kv div{padding:7px 10px;border-bottom:1px solid var(--line);font-size:13px;word-break:break-word}
+.kv div:nth-child(odd){color:var(--muted);font:500 11px var(--f-mono);text-transform:uppercase;letter-spacing:.05em;background:var(--surface-2);display:flex;align-items:center}
+body.cust .internal{display:none!important}
+@media (max-width:1150px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.c8,.c7,.c6,.c5,.c4{grid-column:span 12}.pipe{grid-template-columns:repeat(2,minmax(0,1fr))}.pipe button{border-bottom:1px solid var(--line)}}
+@media (max-width:640px){.wrap{padding-inline:16px}.filters{position:static}.hdr-r{align-items:flex-start}.hdr-btns{justify-content:flex-start}.upd{text-align:left}h1{font-size:24px}.kpi .v{font-size:26px}
+  .fld{flex:1 1 44%}.fld select,.fld input,.gs input{width:100%}.kv{grid-template-columns:120px 1fr}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 
-<div id="boot"><i></i>Loading RFQ dashboard…</div>
+<div id="boot"><i></i>Loading NX Parts Status…</div>
 <header class="band"><div class="wrap">
-  <div><div class="eyebrow">Enquiry &amp; RFQ cell · Summary of submitted RFQs</div><h1 id="ttl">RFQ Summary Desk</h1></div>
-  <div class="hdr-r"><div class="meta" id="meta"></div>
-    <div class="hdr-btns"><span class="live" id="live" hidden><i></i><span id="liveTxt"></span></span>
-      <button class="tbtn" id="refBtn" type="button" hidden>Refresh</button>
-      <button class="tbtn" id="bigBtn" type="button" hidden>Open large window</button>
-      <button class="tbtn" id="themeBtn" type="button" aria-label="Switch light or dark theme"></button></div></div>
+  <div><div class="eyebrow">KSFCIPL · Nextracker NPD</div><h1>NX PARTS STATUS</h1><div class="sub">Earth Truss (Ojjo) &amp; Anchor · sample, dispatch and PPAP tracker</div></div>
+  <div class="hdr-r">
+    <div class="upd" id="upd">Last Updated: —</div>
+    <div class="hdr-btns">
+      <button class="tbtn" id="custBtn" type="button" aria-pressed="false" title="Hide internal columns before sharing your screen">Customer view</button>
+      <button class="tbtn" id="bigBtn" type="button" hidden>Open full screen</button>
+      <button class="tbtn primary" id="refBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg><span>Refresh Data</span></button>
+      <button class="tbtn" id="themeBtn" type="button" aria-label="Switch light or dark theme"></button>
+    </div>
+  </div>
 </div></header>
 
-<section class="filters" aria-label="Filters"><div class="wrap">
-  <div class="fld"><label>Year sheet</label><div class="seg" id="ds"></div></div>
-  <div class="fld"><label>Quotation</label><div class="seg pm" id="pm"><button type="button" data-v="sub" aria-pressed="true">Submitted</button><button type="button" data-v="pend" aria-pressed="false">Pending</button><button type="button" data-v="both" aria-pressed="false">Both</button></div></div>
-  <div class="fld"><label for="from">Date from</label><input type="date" id="from"></div>
-  <div class="fld"><label for="to">Date to</label><input type="date" id="to"></div>
-  <div class="fld"><label for="f-ed">Type</label><select id="f-ed"></select></div>
-  <div class="fld"><label for="f-rt">RFQ</label><select id="f-rt"></select></div>
-  <div class="fld"><label for="f-pc">Process</label><select id="f-pc"></select></div>
-  <div class="fld"><label for="f-c">Customer</label><select id="f-c" style="width:200px"></select></div>
-  <div class="fld"><label for="f-ow">Owner</label><select id="f-ow"></select></div>
-  <div class="fld"><label for="f-pri">Priority</label><select id="f-pri"></select></div>
-  <div class="fld"><label for="f-co">Country</label><select id="f-co"></select></div>
-  <div class="fld"><label for="f-status">Status</label><select id="f-status"></select></div>
-  <div class="fld"><label for="f-pro">Prospective inquiry</label><select id="f-pro"></select></div>
-  <button class="btn" id="reset" type="button">Reset filters</button>
-  <div class="chips" id="chips"></div>
+
+
+<section class="filters" id="filters" aria-label="Filters"><div class="wrap fbar">
+  <div class="fld gs"><label for="q">Search</label><input type="search" id="q" class="ctl" placeholder="Part no, description, PO, tracking…"></div>
+  <div class="fld"><label>Project</label><div class="seg" id="proj"><button type="button" data-v="All" aria-pressed="true">All</button><button type="button" data-v="Earth Truss" aria-pressed="false">Earth Truss</button><button type="button" data-v="Anchor" aria-pressed="false">Anchor</button></div></div>
+  <div class="fld"><label for="f-ps">Part status</label><select id="f-ps"></select></div>
+  <div class="fld"><label for="f-stage">Stage</label><select id="f-stage"></select></div>
+  <div class="fld"><label for="f-del">Delivery</label><select id="f-del"></select></div>
+  <div class="fld"><label for="f-po">PO</label><select id="f-po"><option value="All">All</option><option value="yes">PO received</option><option value="no">No PO</option></select></div>
+  <button class="btn" id="clear" type="button">Clear All Filters</button>
+  <div class="summary" id="summary"></div>
 </div></section>
 
 <main class="wrap" id="main">
   <div class="banner" id="banner" hidden></div>
-  <section class="kpis" id="kpis" aria-label="Key metrics"></section>
+  <section class="kpis" id="kpis" aria-label="Key figures"></section>
 
-  <section class="panel c8"><h2>Monthly trend <small>RFQs by receipt month · submitted vs quotation pending</small></h2>
-    <div class="legend"><span><b style="background:var(--s1)"></b>Submitted</span><span><b style="background:var(--s2)"></b>Quotation pending</span></div>
-    <div class="chart"><canvas id="chMonth" aria-label="Monthly RFQ trend"></canvas></div></section>
+  <section class="panel c12"><h2>Development pipeline <small>where each sample lot stands, from the Part Status column · click a stage to filter</small></h2>
+    <div class="pipe" id="pipe"></div></section>
 
-  <section class="panel c4"><h2>Target date alert <small>Checklist #9 · sent vs target date</small></h2>
-    <div class="tbl" id="alert"></div>
-    <h2 style="margin-top:6px">Regret &amp; hold <small>Checklist #8 · live status</small></h2>
-    <div class="tbl" id="status"></div></section>
+  <section class="panel c7"><h2>Part status <small>drop-down values in sheet order · click a bar to filter</small></h2>
+    <div class="legend"><span><b style="background:var(--p1)"></b>Earth Truss</span><span><b style="background:var(--p2)"></b>Anchor</span></div>
+    <div class="chart" id="psBox"><canvas id="chPS" aria-label="Rows by part status"></canvas></div></section>
+  <section class="panel c5"><h2>Project summary</h2><div class="tbl" id="tProj"></div>
+    <h2 style="margin-top:4px">Delivery</h2>
+    <div class="chart" style="height:170px"><canvas id="chDel" aria-label="Rows by delivery status"></canvas></div></section>
 
-  <section class="panel c8"><h2>RFQ inflow forecast <small>RFQs received per month · next 3 months projected</small></h2>
-    <div class="legend"><span><b style="background:var(--s1)"></b>Actual</span><span><b style="background:var(--s2)"></b>Forecast</span><span><b style="background:var(--s2);opacity:.25"></b>Likely range (80%)</span></div>
-    <div class="chart"><canvas id="chFc" aria-label="RFQ inflow forecast"></canvas></div>
-    <p class="note" id="fcNote"></p></section>
-  <section class="panel c4"><h2>Projection <span class="fc-tag">Estimate</span></h2>
-    <div id="proj"></div>
-    <p class="note">Linear trend on the last 12 full months, filtered as above. TON and turnover use the average per submitted RFQ.</p></section>
+  <section class="panel c7"><h2>Dispatch trend <small>sample lots dispatched per month (date from Recent Status)</small></h2>
+    <div class="legend"><span><b style="background:var(--p1)"></b>Earth Truss</span><span><b style="background:var(--p2)"></b>Anchor</span></div>
+    <div class="chart" style="height:250px"><canvas id="chMonth" aria-label="Dispatches per month"></canvas></div></section>
+  <section class="panel c5"><h2>Earth Truss vs Anchor <small>key counts side by side</small></h2>
+    <div class="legend"><span><b style="background:var(--p1)"></b>Earth Truss</span><span><b style="background:var(--p2)"></b>Anchor</span></div>
+    <div class="chart" style="height:250px"><canvas id="chCmp" aria-label="Project comparison"></canvas></div></section>
 
-  <section class="panel c4"><h2>Process share <small>RFQs submitted</small></h2><div class="chart donut"><canvas id="dProc" aria-label="Process share"></canvas></div></section>
-  <section class="panel c4"><h2>Turnover by type <small>expected year turnover</small></h2><div class="chart donut"><canvas id="dED" aria-label="Turnover by export or domestic"></canvas></div></section>
-  <section class="panel c4"><h2>Category mix <small>RFQs submitted</small></h2><div class="chart donut"><canvas id="dCat" aria-label="Category mix"></canvas></div></section>
 
-  <section class="panel c5"><h2>Process-wise <small>Click a bar to filter</small></h2>
-    <div class="chart tall"><canvas id="chProc" aria-label="RFQs by process"></canvas></div></section>
-  <section class="panel c7"><h2>Process-wise analysis <small>share of RFQs, TON, parts &amp; turnover</small></h2>
-    <div class="tbl" id="tProc"></div></section>
 
-  <section class="panel c6"><h2>TON-wise band <small>RFQ size by annual tonnage</small></h2>
-    <div class="chart" style="height:200px"><canvas id="chBand" aria-label="RFQs by TON band"></canvas></div>
-    <div class="tbl" id="tBand"></div></section>
+  <section class="panel c6"><h2>Recent dispatches <small>last 60 days, newest first</small></h2><div class="tbl scroll" id="tRecent" style="max-height:340px"></div></section>
+  <section class="panel c6"><h2>Upcoming sample readiness <small>not yet dispatched · by readiness date</small></h2><div class="tbl scroll" id="tUp" style="max-height:340px"></div></section>
 
-  <section class="panel c6"><h2>Export vs domestic <small>share of each measure</small></h2>
-    <div class="legend"><span><b style="background:var(--s1)"></b>Export</span><span><b style="background:var(--s3)"></b>Domestic</span><span><b style="background:var(--muted)"></b>Not marked</span></div>
-    <div class="split" id="split"></div>
-    <div class="tbl" id="tED"></div></section>
+  <section class="panel c12" id="attnPanel"><h2>Needs attention <small>flags from sheet comments, rejected samples, overdue readiness, hold</small></h2><div class="tbl scroll" id="tAttn" style="max-height:340px"></div></section>
 
-  <section class="panel c5"><h2>Country-wise <small>RFQs submitted · click a bar to filter</small></h2>
-    <div class="chart" id="coBox"><canvas id="chCo" aria-label="RFQs by country"></canvas></div></section>
-  <section class="panel c7"><h2>Country-wise analysis <small>share of RFQs, TON, parts &amp; turnover</small></h2>
-    <div class="tbl scroll" id="tCo"></div>
-    <h2 style="margin-top:6px">India · state-wise <small>domestic RFQs by state (from city / state in the sheet)</small></h2>
-    <div class="tbl scroll" id="tSta" style="max-height:300px"></div></section>
+  <section class="panel c12"><div class="ph"><h2>All parts <small id="cnt"></small></h2>
+    <input type="search" id="tq" class="ctl" placeholder="Search in table…" style="width:220px"></div>
+    <div class="tbl scroll" id="tAll" style="max-height:680px"></div>
+    <p class="note">Every row in the sheet counts as one sample lot. A part number can appear more than once (new revision or new sample lot). Click a row for full details and the part's history.</p></section>
 
-  <section class="panel c8"><h2>Customer-wise analysis <small>Click a header to sort · click a row to filter</small></h2>
-    <input class="search" id="cSearch" type="search" placeholder="Search customer">
-    <div class="tbl scroll" id="tCust"></div></section>
-
-  <section class="panel c4"><h2>Owner load <small>RFQs handled</small></h2>
-    <div class="chart tall" id="ownerBox"><canvas id="chOwner" aria-label="RFQs by owner"></canvas></div></section>
-
-  <section class="panel c4"><h2>Category-wise</h2>
-    <div class="chart" style="height:180px"><canvas id="chCat" aria-label="RFQs by category"></canvas></div>
-    <div class="tbl" id="tCat"></div></section>
-  <section class="panel c4"><h2>Priority-wise</h2><div class="tbl" id="tPri"></div>
-    <p class="note">High-priority RFQs drive most of the expected turnover; check the pending count before chasing new enquiries.</p></section>
-  <section class="panel c4"><h2>Casting grade <small>SG / CI / ADI split of Casting</small></h2>
-    <div class="tbl" id="tGrade"></div></section>
-
-  <section class="panel c12"><h2>Monthly trend &amp; quotation status <small>combined</small></h2>
-    <div class="tbl" id="tMonth"></div></section>
-
-  <section class="panel c12"><h2>RFQ register <small id="regCount"></small></h2>
-    <input class="search" id="rSearch" type="search" placeholder="Search RFQ no, customer, material">
-    <div class="tbl scroll" id="tReg"></div></section>
+  <section class="panel c12" id="hidPanel"><details class="hid"><summary id="hidSum">Hidden rows in the sheet</summary>
+    <p class="note" style="margin:8px 0">These rows are hidden in Excel and are not counted anywhere above.</p>
+    <div class="tbl scroll" id="tHid"></div></details></section>
 </main>
 
+<div class="drawer" id="drawer" hidden><div class="pane" role="dialog" aria-modal="true" aria-labelledby="dwTitle"><div class="ph"><h3 id="dwTitle"></h3><button class="btn sm" id="dwClose" type="button">Close</button></div><div id="dwBody"></div></div></div>
+<div class="toast" id="toast" hidden></div>
+
 <script src="chart.umd.js"></script>
-<script src="parser.js"></script>
-<script>
-const EMBED = null;
-const EMBED_SHEETS = {"2025":"Sub 2025","2026":"submitted 2026"};
-let RAW = {}, SHEETS = {};
-const MODE = new URLSearchParams(location.search).get('mode') === 'dialog' ? 'dialog' : 'main';
-const TODAY = new Date(); TODAY.setHours(0,0,0,0);
-const todayStr = TODAY.getFullYear()+'-'+String(TODAY.getMonth()+1).padStart(2,'0')+'-'+String(TODAY.getDate()).padStart(2,'0');
-const PROCS = ['Casting','Assembly','Raw Material','Forging','Investment Casting','Steel Casting','Fabrication','Aluminium Casting','Welding','Bought Out','Others'];
-const BANDS = [['< 1 TON',-Infinity,1],['1–5 TON',1,5],['5–10 TON',5,10],['10–50 TON',10,50],['50–200 TON',50,200],['> 200 TON',200,Infinity]];
-const CATS = ['A','B','C','D','ND','NA'];
-const PRIS = ['High','Medium','Low','NA'];
-const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
-const st = {ds:'',from:'',to:'',ed:'All',rt:'All',pc:'All',c:'All',ow:'All',pri:'All',co:'All',status:'All',pro:'All',pm:'sub'};
-const sortC = {k:'n',dir:-1};
-const $ = id => document.getElementById(id);
-const esc = s => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
-const nf0 = new Intl.NumberFormat('en-IN',{maximumFractionDigits:0});
-const nf2 = new Intl.NumberFormat('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
-const N0 = v => nf0.format(v||0), N2 = v => nf2.format(v||0);
-const P = v => (isFinite(v)?(v*100).toFixed(1):'0.0')+'%';
-const INR = v => '₹'+nf0.format(Math.round(v||0));
-function INRs(v){v=v||0;const a=Math.abs(v);if(a>=1e7)return '₹'+(v/1e7).toLocaleString('en-IN',{maximumFractionDigits:a>=1e9?0:1})+' Cr';if(a>=1e5)return '₹'+(v/1e5).toFixed(1)+' L';return INR(v);}
-const sum = (a,f) => a.reduce((s,x)=>s+(f(x)||0),0);
-const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-
-const KEYS = () => Object.keys(RAW).filter(k=>RAW[k].length).sort();
-function rowsFor(ds){ return ds==='all' ? KEYS().flatMap(k=>RAW[k]) : (RAW[ds]||[]); }
-function dateRange(ds){ const r=rowsFor(ds).map(x=>x.d).sort(); return [r[0]||'', r[r.length-1]||'']; }
-
-function setupSelects(){
-  const rows = rowsFor(st.ds);
-  const opt = (id, vals, key) => { const el=$(id); el.innerHTML = ['All',...vals].map(v=>`<option value="${esc(v)}">${v==='All'?'All':esc(v)}</option>`).join(''); if(!['All',...vals].includes(st[key])) st[key]='All'; el.value=st[key]; };
-  opt('f-ed',['Export','Domestic'],'ed');
-  opt('f-rt',['RFQ 1.0','RFQ 2.0'],'rt');
-  opt('f-pc',PROCS.filter(p=>rows.some(r=>r.pc===p)),'pc');
-  opt('f-c',[...new Set(rows.map(r=>r.c))].sort((a,b)=>a.localeCompare(b)),'c');
-  opt('f-ow',[...new Set(rows.flatMap(r=>r.ow))].sort(),'ow');
-  opt('f-pri',['High','Medium','Low'],'pri');
-  const SORD=['Open','Won','Regret','Hold']; opt('f-status',SORD.filter(s=>rows.some(r=>r.st===s)),'status');
-  const PORD=['Yes','No','Maybe']; const pv=[...new Set(rows.map(r=>r.pro))]; opt('f-pro',[...PORD.filter(x=>pv.includes(x)),...pv.filter(x=>!PORD.includes(x)&&x!=='Not set').sort(),...(pv.includes('Not set')?['Not set']:[])],'pro');
-  opt('f-co',[...new Set(rows.map(r=>r.co))].sort((a,b)=>a==='Not specified'?1:b==='Not specified'?-1:a.localeCompare(b)),'co');
-}
-function setDataset(ds, keepDates){
-  st.ds=ds;
-  const ks = KEYS(), opts = ks.length>1 ? [...ks,'all'] : ks;
-  $('ds').innerHTML = opts.map(k=>`<button type="button" data-v="${k}" aria-pressed="${k===ds}">${k==='all'?'All years':k}</button>`).join('');
-  $('ds').querySelectorAll('button').forEach(b=>b.onclick=()=>{ setDataset(b.dataset.v); render(); });
-  if(!keepDates){ const [a,b]=dateRange(ds); st.from=a; st.to=b; }
-  $('from').value=st.from; $('to').value=st.to;
-  setupSelects();
-}
-
-function pmEff(){ return (st.status==='Regret' && st.pm==='sub') ? 'both' : st.pm; }
-function filtered(){
-  const noDate = pmEff()==='pend';
-  return rowsFor(st.ds).filter(r =>
-    (noDate || !st.from || r.d>=st.from) && (noDate || !st.to || r.d<=st.to) &&
-    (st.status==='All'||r.st===st.status) && (st.pro==='All'||r.pro===st.pro) &&
-    (st.ed==='All'||r.ed===st.ed) && (st.rt==='All'||r.rt===st.rt) &&
-    (st.pc==='All'||r.pc===st.pc) && (st.c==='All'||r.c===st.c) &&
-    (st.ow==='All'||r.ow.includes(st.ow)) && (st.pri==='All'||r.pri===st.pri) && (st.co==='All'||r.co===st.co));
-}
-function alertOf(r){
-  if(!r.t) return 'No target';
-  if(r.s){ return r.s>r.t?'Delay':(r.s<r.t?'Before':'On target'); }
-  return todayStr>r.t?'Delay':'Open';
-}
-
-function agg(list){ const n=list.length, ton=sum(list,x=>x.ton), pt=sum(list,x=>x.pt), to=sum(list,x=>x.to);
-  return {n,ton,pt,to,avg:n?ton/n:0,hi:list.filter(x=>x.pri==='High').length}; }
-
-function table(el, cols, rows, opt={}){
-  if(!rows.length){ $(el).innerHTML='<div class="empty">No RFQs match these filters.</div>'; return; }
-  const max={}; cols.forEach(c=>{ if(c.bar) max[c.k]=Math.max(...rows.map(r=>r[c.k]||0),1e-9); });
-  const th = cols.map(c=>{ const arrow = opt.sort&&opt.sort.k===c.k?`<span class="arr">${opt.sort.dir>0?' ▲':' ▼'}</span>`:'';
-    return `<th${opt.sortable?` data-k="${c.k}" tabindex="0"`:''}>${c.l}${arrow}</th>`; }).join('');
-  const td = r => cols.map(c=>{ const v=r[c.k]; const txt = c.f?c.f(v,r):esc(v??'');
-    if(c.bar){ const w=Math.max(0,(v||0)/max[c.k]*100).toFixed(1); return `<td class="bar" style="background-size:${w}% 70%">${txt}</td>`; }
-    return `<td>${txt}</td>`; }).join('');
-  const body = rows.map(r=>`<tr${opt.click?` class="clk" data-v="${esc(r.name)}"`:''}>${td(r)}</tr>`).join('');
-  const tot = opt.total?`<tr class="tot">${td(opt.total)}</tr>`:'';
-  $(el).innerHTML = `<table><thead><tr>${th}</tr></thead><tbody>${body}${tot}</tbody></table>`;
-  if(opt.click) $(el).querySelectorAll('tr.clk').forEach(tr=>tr.onclick=()=>opt.click(tr.dataset.v));
-  if(opt.sortable) $(el).querySelectorAll('th[data-k]').forEach(th=>{ const go=()=>opt.onSort(th.dataset.k); th.onclick=go; th.onkeydown=e=>{if(e.key==='Enter')go();}; });
-}
-
-const charts = {};
-function bar(id, labels, datasets, o={}){
-  const ink2=css('--ink-2'), line=css('--line'), muted=css('--muted');
-  if(charts[id]) charts[id].destroy();
-  charts[id] = new Chart($(id), {type:'bar', data:{labels, datasets:datasets.map(d=>({borderRadius:4,borderSkipped:'start',maxBarThickness:o.thick||38,categoryPercentage:.78,barPercentage:.92,...d}))},
-    options:{indexAxis:o.h?'y':'x',responsive:true,maintainAspectRatio:false,animation:{duration:250},
-      interaction:{mode:'index',intersect:false},
-      plugins:{legend:{display:false},tooltip:{backgroundColor:css('--band'),titleColor:'#fff',bodyColor:'#e8edf2',padding:10,cornerRadius:6,
-        titleFont:{family:'IBM Plex Sans',weight:'600'},bodyFont:{family:'IBM Plex Sans'},callbacks:o.tip||{}}},
-      scales:{x:{stacked:!!o.stack,grid:{display:!!o.h,color:line},border:{display:false},ticks:{color:ink2,font:{family:'IBM Plex Sans',size:11},autoSkip:!o.h,maxRotation:0}},
-              y:{stacked:!!o.stack,grid:{display:!o.h,color:line},border:{display:false},beginAtZero:true,ticks:{color:o.h?ink2:muted,font:{family:'IBM Plex Sans',size:11},precision:0,autoSkip:false}}},
-      onClick:o.click?(e,els)=>{ if(els.length){ const v=labels[els[0].index]; setTimeout(()=>o.click(v),0); } }:undefined,
-      onHover:o.click?(e,els)=>{ e.native.target.style.cursor=els.length?'pointer':'default'; }:undefined}});
-}
-
-function setF(k,v){ st[k] = st[k]===v?'All':v; const el=$({pc:'f-pc',c:'f-c',ow:'f-ow',ed:'f-ed',pri:'f-pri',rt:'f-rt',co:'f-co',status:'f-status',pro:'f-pro'}[k]); if(el) el.value=st[k]; render(); }
-
-function render(){
-  const PM = pmEff();
-  const all0 = filtered();
-  const pend = all0.filter(r=>r.p);
-  const sub = PM==='sub' ? all0.filter(r=>!r.p) : PM==='pend' ? pend : all0;
-  const all = PM==='pend' ? pend : all0;
-  document.querySelectorAll('#pm button').forEach(b=>b.setAttribute('aria-pressed', b.dataset.v===PM));
-  $('from').disabled = $('to').disabled = PM==='pend';
-  const A = agg(sub);
-  const custs = new Set(sub.map(r=>r.c)).size;
-  const pendOver = pend.filter(r=>r.t && todayStr>r.t).length;
-
-  // header
-  const fmtD = s => { if(!s) return '—'; const [y,m,d]=s.split('-'); return `${+d} ${MON[m-1]} ${y}`; };
-  const ks=KEYS(); $('ttl').textContent = (PM==='pend'?'Summary of Pending RFQ ':PM==='both'?'Summary of Submitted + Pending RFQ ':'Summary of Submitted RFQ ') + (st.ds==='all'?ks[0]+'–'+ks[ks.length-1]:st.ds);
-  $('meta').innerHTML = `${fmtD(st.from)} → ${fmtD(st.to)}<br>Sheet: ${esc(st.ds==='all'?ks.map(k=>SHEETS[k]||k).join(' + '):(SHEETS[st.ds]||st.ds))} · alerts as of ${fmtD(todayStr)}`;
-  const chipMap = {ed:'Type',rt:'RFQ',pc:'Process',c:'Customer',ow:'Owner',pri:'Priority',co:'Country',status:'Status',pro:'Prospective'};
-  $('chips').innerHTML = Object.keys(chipMap).filter(k=>st[k]!=='All').map(k=>`<button class="chip" data-k="${k}" type="button">${chipMap[k]}: ${esc(st[k])} ✕</button>`).join('');
-  const PML={sub:'Submitted only',pend:'Only pending',both:'Submitted + pending'};
-  $('chips').insertAdjacentHTML('afterbegin', `<span class="chip fixedchip">Quotation: ${PML[PM]}</span>`+(st.status==='Regret'&&st.pm==='sub'?'<span class="chip fixedchip warnchip">Regret rows are counted from pending quotations</span>':''));
-  $('chips').querySelectorAll('.chip[data-k]').forEach(b=>b.onclick=()=>setF(b.dataset.k,st[b.dataset.k]));
-
-  // KPIs
-  const k = (label,val,sub,cls='')=>`<div class="kpi ${cls}"><div class="k">${label}</div><div class="v" title="${esc(val)}">${val}</div><div class="s">${sub||'&nbsp;'}</div></div>`;
-  const wonRows=sub.filter(r=>r.st==='Won'), wonCv=sum(wonRows,x=>x.cv), wonNoVal=wonRows.filter(r=>!r.cv).length, cvErrN=sub.filter(r=>r.cvErr).length;
-  const r1=sub.filter(r=>r.rt==='RFQ 1.0').length, r2=sub.filter(r=>r.rt==='RFQ 2.0').length;
-  const ex=sub.filter(r=>r.ed==='Export').length, dm=sub.filter(r=>r.ed==='Domestic').length;
-  $('kpis').innerHTML =
-    k(PM==='sub'?'Total RFQs submitted':PM==='pend'?'Pending RFQs':'Total RFQs (submitted + pending)',N0(A.n),PM==='pend'?'quotation not sent yet':`${N0(all0.length)} received in period`)+
-    k('RFQ 1.0',N0(r1),P(r1/A.n)+(PM==='sub'?' of submitted':' of RFQs'))+
-    k('RFQ 2.0',N0(r2),P(r2/A.n)+(PM==='sub'?' of submitted':' of RFQs'))+
-    k('Total TON',A.ton.toLocaleString('en-IN',{maximumFractionDigits:1}),'annual tonnage quoted')+
-    `<div class="kpi hero"><div class="k">Total expected year turnover</div><div class="v" title="${INR(A.to)}">${INRs(A.to)}</div><div class="s">${INR(A.to)}</div></div>`+
-    `<div class="kpi won"><div class="k">Converted turnover (Won)</div><div class="v" title="${INR(wonCv)}">${INRs(wonCv)}</div><div class="s">${N0(wonRows.length)} won RFQs${wonNoVal?` · ${wonNoVal} without value`:''}${cvErrN?` · ${cvErrN} error cells = 0`:''}</div></div>`+
-    k('Total customers',N0(custs),PM==='pend'?'with a pending RFQ':PM==='both'?'with an RFQ in this view':'with a submitted RFQ')+
-    k('Total parts',N0(A.pt),'part numbers quoted')+
-    k('Export RFQs',N0(ex),P(ex/A.n))+
-    k('Domestic RFQs',N0(dm),P(dm/A.n))+
-    k('High priority',N0(A.hi),P(A.hi/A.n))+
-    k('Avg TON / RFQ',N2(A.avg),'')+
-    k('Quotation pending',N0(pend.length),`${N0(pendOver)} past target date`, pend.length?'warn':'');
-
-  // Monthly
-  const months={}; all.forEach(r=>{ const m=r.d.slice(0,7); (months[m]=months[m]||[]).push(r); });
-  const mk=Object.keys(months).sort();
-  const mlab=mk.map(m=>MON[+m.slice(5)-1]+' '+m.slice(2,4));
-  bar('chMonth', mlab, [
-    {label:'Submitted',data:mk.map(m=>months[m].filter(r=>!r.p).length),backgroundColor:css('--s1')},
-    {label:'Quotation pending',data:mk.map(m=>months[m].filter(r=>r.p).length),backgroundColor:css('--s2')}], {stack:true,thick:30});
-
-  const mrows = mk.map((m,i)=>{ const L=months[m], S=L.filter(r=>!r.p), a=agg(S); const pn=L.length-S.length;
-    return {name:mlab[i],n:a.n,pt:a.pt,ton:a.ton,ex:S.filter(r=>r.ed==='Export').length,dm:S.filter(r=>r.ed==='Domestic').length,
-      cs:S.filter(r=>r.pc==='Casting').length,as:S.filter(r=>r.pc==='Assembly').length,rm:S.filter(r=>r.pc==='Raw Material').length,
-      hi:a.hi,sent:S.filter(r=>r.s).length,pn,pct:L.length?S.length/L.length:0,to:a.to}; });
-  const mt = mrows.reduce((t,r)=>{ for(const x in r) if(x!=='name'&&x!=='pct') t[x]=(t[x]||0)+r[x]; return t; },{name:'Total'});
-  mt.pct = (mt.n+mt.pn)?mt.n/(mt.n+mt.pn):0;
-  table('tMonth',[{k:'name',l:'Month'},{k:'n',l:'RFQs',f:N0,bar:1},{k:'pt',l:'Parts',f:N0},{k:'ton',l:'TON',f:N2},{k:'ex',l:'Export',f:N0},{k:'dm',l:'Domestic',f:N0},
-    {k:'cs',l:'Casting',f:N0},{k:'as',l:'Assembly',f:N0},{k:'rm',l:'Raw Mat.',f:N0},{k:'hi',l:'High prio',f:N0},{k:'sent',l:'Quot. sent (dated)',f:N0},
-    {k:'pn',l:'Quot. pending',f:v=>v?`<span class="pill p-warn">${N0(v)}</span>`:'0'},{k:'pct',l:'% submitted',f:P},{k:'to',l:'Exp. year turnover',f:INR}], mrows, {total:mt});
-
-  // Alert (Checklist #9)
-  const al = {Delay:0,Before:0,'On target':0,Open:0,'No target':0}, alT={};
-  sub.forEach(r=>{ const a=alertOf(r); al[a]++; alT[a]=(alT[a]||0)+r.ton; });
-  const pDelay = pend.filter(r=>r.t&&todayStr>r.t).length;
-  const acls = {Delay:'p-bad',Before:'p-good','On target':'p-info','No target':'p-hold'};
-  const aname = {Delay:'Delay',Before:'Before target','On target':'Sent on target','No target':'No target date'};
-  table('alert',[{k:'name',l:'Alert',f:(v,r)=>`<span class="pill ${acls[r.key]}"><i></i>${v}</span>`},{k:'n',l:'RFQs',f:N0},{k:'pc',l:'%',f:P},{k:'ton',l:'TON',f:N2}],
-    ['Delay','Before','On target','No target'].filter(x=>al[x]||x!=='No target').map(x=>({key:x,name:aname[x],n:al[x],pc:al[x]/(A.n||1),ton:alT[x]||0})));
-  // status
-  const SS=[['Open','Active / Open','p-info'],['Regret','Regret (D)','p-bad'],['Hold','Hold / On hold','p-warn'],['Won','Won / Order received','p-good']];
-  table('status',[{k:'name',l:'Status',f:(v,r)=>`<span class="pill ${r.cls}"><i></i>${v}</span>`},{k:'n',l:'RFQs',f:N0},{k:'pc',l:'%',f:P},{k:'ton',l:'TON',f:N2},{k:'pt',l:'Parts',f:N0}],
-    SS.map(([key,name,cls])=>{ const L=sub.filter(r=>r.st===key); return {name,cls,n:L.length,pc:L.length/(A.n||1),ton:sum(L,x=>x.ton),pt:sum(L,x=>x.pt)}; }));
-  document.querySelector('#alert').insertAdjacentHTML('beforeend', pDelay?`<p class="note" style="padding:8px 10px">Plus <b>${pDelay}</b> pending quotation${pDelay>1?'s':''} already past target date.</p>`:'');
-
-  // Process
-  const prows = PROCS.map(p=>{ const L=sub.filter(r=>r.pc===p); return {name:p,...agg(L)}; }).filter(r=>r.n>0);
-  prows.forEach(r=>{ r.sh=r.n/(A.n||1); r.tsh=A.to?r.to/A.to:0; r.tonsh=A.ton?r.ton/A.ton:0; r.ptsh=A.pt?r.pt/A.pt:0; });
-  prows.sort((a,b)=>b.n-a.n);
-  bar('chProc', prows.map(r=>r.name), [{label:'RFQs',data:prows.map(r=>r.n),backgroundColor:prows.map(r=>st.pc==='All'||st.pc===r.name?css('--s1'):css('--line-2'))}],
-    {h:true,thick:22,click:v=>setF('pc',v),tip:{afterLabel:c=>{const r=prows[c.dataIndex];return `TON ${N2(r.ton)} · ${INRs(r.to)}`;}}});
-  table('tProc',[{k:'name',l:'Process'},{k:'n',l:'RFQs',f:N0,bar:1},{k:'sh',l:'% RFQ',f:P},{k:'ton',l:'TON',f:N2},{k:'pt',l:'Parts',f:N0},{k:'avg',l:'Avg TON',f:N2},
-    {k:'to',l:'Exp. turnover',f:INR},{k:'tsh',l:'Turnover %',f:P},{k:'tonsh',l:'TON %',f:P},{k:'ptsh',l:'Parts %',f:P}], prows,
-    {click:v=>setF('pc',v), total:{name:'Total',...A,sh:A.n?1:0,tsh:A.to?1:0,tonsh:A.ton?1:0,ptsh:A.pt?1:0}});
-
-  // Band
-  const brows = BANDS.map(([name,lo,hi])=>{ const L=sub.filter(r=>r.ton>=lo&&r.ton<hi); const a=agg(L); return {name,...a,sh:a.n/(A.n||1),mx:L.length?Math.max(...L.map(x=>x.ton)):0}; });
-  bar('chBand', brows.map(r=>r.name), [{label:'RFQs',data:brows.map(r=>r.n),backgroundColor:css('--s1')}], {thick:46,tip:{afterLabel:c=>'TON '+N2(brows[c.dataIndex].ton)}});
-  table('tBand',[{k:'name',l:'TON range'},{k:'n',l:'RFQs',f:N0},{k:'sh',l:'% RFQ',f:P},{k:'ton',l:'Total TON',f:N2},{k:'avg',l:'Avg TON',f:N2},{k:'mx',l:'Max TON',f:N2},{k:'to',l:'Exp. turnover',f:INRs}], brows,
-    {total:{name:'Total',...A,sh:A.n?1:0,mx:sub.length?Math.max(...sub.map(x=>x.ton)):0}});
-
-  // Export vs domestic
-  const eds=[['Export','--s1'],['Domestic','--s3'],['NA','--muted']];
-  const erows = eds.map(([e])=>{ const L=sub.filter(r=>r.ed===e); return {name:e==='NA'?'Not marked':e,...agg(L)}; });
-  const sbar = (lbl,key,fmt)=>{ const tot=sum(erows,r=>r[key]); return `<div class="row"><div class="lbl">${lbl}</div><div class="sbar">${erows.map((r,i)=>{ const w=tot?r[key]/tot*100:0; return w>0?`<span style="flex:${w} 1 0;background:var(${eds[i][1]})" title="${r.name}: ${fmt(r[key])} (${w.toFixed(1)}%)">${w>=12?w.toFixed(0)+'%':''}</span>`:''; }).join('')||'<span style="flex:1;background:var(--line)"></span>'}</div></div>`; };
-  $('split').innerHTML = sbar('RFQs','n',N0)+sbar('TON','ton',N2)+sbar('Turnover','to',INR);
-  table('tED',[{k:'name',l:'Type'},{k:'n',l:'RFQs',f:N0},{k:'ton',l:'TON',f:N2},{k:'pt',l:'Parts',f:N0},{k:'to',l:'Exp. year turnover',f:INR}], erows.filter(r=>r.n), {total:{name:'Total',...A}});
-
-  // Country
-  const cgrp={}; sub.forEach(r=>{ (cgrp[r.co]=cgrp[r.co]||[]).push(r); });
-  const corows=Object.entries(cgrp).map(([name,L])=>{ const a=agg(L); return {name,...a,ex:L.filter(r=>r.ed==='Export').length,dm:L.filter(r=>r.ed==='Domestic').length,sh:a.n/(A.n||1),tsh:A.to?a.to/A.to:0}; })
-    .sort((a,b)=>(a.name==='Not specified')-(b.name==='Not specified')||b.n-a.n);
-  $('coBox').style.height=Math.max(220,corows.length*28+40)+'px';
-  bar('chCo', corows.map(r=>r.name), [{label:'RFQs',data:corows.map(r=>r.n),backgroundColor:corows.map(r=>r.name==='Not specified'?css('--muted'):(st.co==='All'||st.co===r.name?css('--s3'):css('--line-2')))}],
-    {h:true,thick:20,click:v=>setF('co',v),tip:{afterLabel:c=>{ const r=corows[c.dataIndex]; return `TON ${N2(r.ton)} · ${INRs(r.to)}`; }}});
-  table('tCo',[{k:'name',l:'Country'},{k:'n',l:'RFQs',f:N0,bar:1},{k:'sh',l:'% RFQ',f:P},{k:'ex',l:'Export',f:N0},{k:'dm',l:'Domestic',f:N0},{k:'ton',l:'TON',f:N2},{k:'pt',l:'Parts',f:N0},{k:'hi',l:'High prio',f:N0},{k:'to',l:'Exp. turnover',f:INRs},{k:'tsh',l:'Turnover %',f:P}],
-    corows,{click:v=>setF('co',v),total:{name:'Total',...A,sh:A.n?1:0,tsh:A.to?1:0,ex:sub.filter(r=>r.ed==='Export').length,dm:sub.filter(r=>r.ed==='Domestic').length}});
-  const ind=sub.filter(r=>r.co==='India'), sg={}; ind.forEach(r=>{ const k=r.sta||'Not specified'; (sg[k]=sg[k]||[]).push(r); });
-  const strows=Object.entries(sg).map(([name,L])=>{ const a=agg(L); return {name,...a,cities:[...new Set(L.map(r=>r.loc).filter(x=>x&&x.toUpperCase()!==name.toUpperCase()))].join(', ')||'—'}; })
-    .sort((a,b)=>(a.name==='Not specified')-(b.name==='Not specified')||b.n-a.n);
-  table('tSta',[{k:'name',l:'State'},{k:'cities',l:'Cities in sheet',f:v=>esc(v)},{k:'n',l:'RFQs',f:N0,bar:1},{k:'ton',l:'TON',f:N2},{k:'pt',l:'Parts',f:N0},{k:'to',l:'Exp. turnover',f:INRs}],
-    strows,{total:ind.length?{name:'Total India',cities:'',...agg(ind)}:null});
-
-  // Customers
-  renderCust(sub);
-
-  // Owner
-  const owners=[...new Set(sub.flatMap(r=>r.ow))];
-  const orows=owners.map(o=>{ const L=sub.filter(r=>r.ow.includes(o)); return {name:o,n:L.length,ton:sum(L,x=>x.ton),to:sum(L,x=>x.to)}; }).sort((a,b)=>b.n-a.n);
-  $('ownerBox').style.height = Math.max(200, orows.length*30+40)+'px';
-  bar('chOwner', orows.map(r=>r.name), [{label:'RFQs',data:orows.map(r=>r.n),backgroundColor:orows.map(r=>st.ow==='All'||st.ow===r.name?css('--s7'):css('--line-2'))}],
-    {h:true,thick:20,click:v=>setF('ow',v),tip:{afterLabel:c=>`TON ${N2(orows[c.dataIndex].ton)} · ${INRs(orows[c.dataIndex].to)}`}});
-
-  // Category
-  const crows = CATS.map(c=>{ const L=sub.filter(r=>r.cat===c); return {name:c==='NA'?'Not set':c,...agg(L),sh:L.length/(A.n||1)}; }).filter(r=>r.n);
-  bar('chCat', crows.map(r=>r.name), [{label:'RFQs',data:crows.map(r=>r.n),backgroundColor:css('--s3')}], {thick:40});
-  table('tCat',[{k:'name',l:'Category'},{k:'n',l:'RFQs',f:N0},{k:'sh',l:'%',f:P},{k:'to',l:'Exp. turnover',f:INRs}], crows, {total:{name:'Total',...A,sh:A.n?1:0}});
-
-  // Priority
-  const pcls={High:'p-bad',Medium:'p-warn',Low:'p-hold',NA:'p-hold'};
-  const prr = PRIS.map(p=>{ const L=sub.filter(r=>r.pri===p); return {key:p,name:p==='NA'?'Not set':p,...agg(L)}; }).filter(r=>r.n);
-  table('tPri',[{k:'name',l:'Priority',f:(v,r)=>`<span class="pill ${pcls[r.key]}"><i></i>${v}</span>`},{k:'n',l:'RFQs',f:N0},{k:'ton',l:'TON',f:N2},{k:'to',l:'Exp. turnover',f:INRs}], prr,
-    {total:{name:'Total',...A}});
-
-  // Casting grade
-  const cast = sub.filter(r=>r.pc==='Casting'); const CA=agg(cast);
-  const grows = ['SG','CI','ADI',''].map(g=>{ const L=cast.filter(r=>r.g===g); const a=agg(L); return {name:g||'Not graded',...a,sh:a.n/(CA.n||1),tsh:CA.to?a.to/CA.to:0,tonsh:CA.ton?a.ton/CA.ton:0}; }).filter(r=>r.n);
-  table('tGrade',[{k:'name',l:'Grade'},{k:'n',l:'RFQs',f:N0,bar:1},{k:'sh',l:'% RFQ',f:P},{k:'ton',l:'TON',f:N2},{k:'pt',l:'Parts',f:N0},{k:'to',l:'Exp. turnover',f:INRs},{k:'tonsh',l:'TON %',f:P}], grows,
-    {total:{name:'Total casting',...CA,sh:CA.n?1:0,tonsh:CA.ton?1:0}});
-
-  renderExtras(all, sub, A);
-  // Register
-  renderReg(all);
-}
-
-
-// ---------- colour helpers ----------
-function hexA(h,a){ h=h.replace('#',''); if(h.length===3) h=h.split('').map(c=>c+c).join(''); const n=parseInt(h,16); return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`; }
-const PROC_COL = {'Casting':'--s1','Raw Material':'--s2','Assembly':'--s3','Forging':'--s4','Investment Casting':'--s5','Steel Casting':'--s7'};
-const CAT_COL = {A:'--s1',B:'--s2',C:'--s3',D:'--s4',ND:'--s5'};
-
-const centerText = {id:'centerText', afterDraw(c){ const o=c.options.plugins.centerText; if(!o) return; const {ctx,chartArea:a}=c; const x=(a.left+a.right)/2, y=(a.top+a.bottom)/2;
-  ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle=css('--ink'); ctx.font='600 22px "Barlow Condensed", "Arial Narrow", sans-serif'; ctx.fillText(o.value,x,y-7);
-  ctx.fillStyle=css('--muted'); ctx.font='500 10px "IBM Plex Mono", monospace'; ctx.fillText(o.label.toUpperCase(),x,y+12); ctx.restore(); }};
-
-function donut(id, items, fmt, center){
-  if(charts[id]) charts[id].destroy();
-  const tot = items.reduce((s,x)=>s+x.v,0);
-  charts[id] = new Chart($(id), {type:'doughnut', plugins:[centerText],
-    data:{labels:items.map(x=>x.l), datasets:[{data:items.map(x=>x.v), backgroundColor:items.map(x=>x.c), borderColor:css('--surface'), borderWidth:2, hoverOffset:4}]},
-    options:{responsive:true, maintainAspectRatio:false, cutout:'64%', animation:{duration:250},
-      plugins:{centerText:{value:center, label:'total'},
-        legend:{position:'right', labels:{color:css('--ink-2'), boxWidth:10, boxHeight:10, padding:10, font:{family:'IBM Plex Sans', size:11},
-          generateLabels:c=>c.data.labels.map((l,i)=>({text:`${l}  ${tot?(c.data.datasets[0].data[i]/tot*100).toFixed(0):0}%`, fillStyle:items[i].c, strokeStyle:items[i].c, fontColor:css('--ink-2'), index:i, hidden:false}))}},
-        tooltip:{backgroundColor:css('--band'), padding:10, cornerRadius:6, callbacks:{label:c=>` ${c.label}: ${fmt(c.raw)} (${tot?(c.raw/tot*100).toFixed(1):0}%)`}}}}});
-}
-
-// ---------- forecast ----------
-const mAdd = (ym,k)=>{ let y=+ym.slice(0,4), m=+ym.slice(5,7)-1+k; y+=Math.floor(m/12); m=((m%12)+12)%12; return y+'-'+String(m+1).padStart(2,'0'); };
-const mLab = ym => MON[+ym.slice(5,7)-1]+' '+ym.slice(2,4);
-function renderExtras(all, sub, A){
-  // donuts
-  const byP={}; sub.forEach(r=>byP[r.pc]=(byP[r.pc]||0)+1);
-  const main=Object.keys(PROC_COL).filter(p=>byP[p]).map(p=>({l:p,v:byP[p],c:css(PROC_COL[p])}));
-  const rest=Object.keys(byP).filter(p=>!PROC_COL[p]).reduce((s,p)=>s+byP[p],0);
-  if(rest) main.push({l:'Other processes',v:rest,c:css('--muted')});
-  donut('dProc', main, N0, N0(sub.length));
-  const eds=[['Export','--s1'],['Domestic','--s3'],['NA','--muted']].map(([e,c])=>({l:e==='NA'?'Not marked':e,v:sum(sub.filter(r=>r.ed===e),x=>x.to),c:css(c)})).filter(x=>x.v>0);
-  donut('dED', eds, INRs, INRs(A.to));
-  const cats=['A','B','C','D','ND','NA'].map(k=>({l:k==='NA'?'Not set':k,v:sub.filter(r=>r.cat===k).length,c:css(CAT_COL[k]||'--muted')})).filter(x=>x.v);
-  donut('dCat', cats, N0, N0(sub.length));
-
-  // monthly inflow series (all RFQs received, incl. pending)
-  const cnt={}; all.forEach(r=>{ const m=r.d.slice(0,7); cnt[m]=(cnt[m]||0)+1; });
-  const ms=Object.keys(cnt).sort();
-  const curM=todayStr.slice(0,7);
-  const note=$('fcNote');
-  if(!ms.length){ if(charts.chFc) charts.chFc.destroy(); $('proj').innerHTML='<div class="empty">No data in range.</div>'; note.textContent=''; return; }
-  const series=[]; for(let m=ms[0]; m<=ms[ms.length-1]; m=mAdd(m,1)) series.push({m, v:cnt[m]||0});
-  const partial = series.length && series[series.length-1].m===curM && (!st.to || st.to>=todayStr);
-  const full = partial ? series.slice(0,-1) : series.slice();
-  const hist = full.slice(-12);
-  const lastFull = full.length ? full[full.length-1].m : series[0].m;
-  const H=3, fcM=[1,2,3].map(k=>mAdd(lastFull,k));
-  let fc=null;
-  if(hist.length>=4){
-    const n=hist.length, xs=hist.map((_,i)=>i), ys=hist.map(p=>p.v);
-    const xm=(n-1)/2, ym=ys.reduce((a,b)=>a+b,0)/n;
-    const sxx=xs.reduce((s,x)=>s+(x-xm)**2,0), sxy=xs.reduce((s,x,i)=>s+(x-xm)*(ys[i]-ym),0);
-    const b=sxx?sxy/sxx:0, a=ym-b*xm;
-    const sd=Math.sqrt(ys.reduce((s,y,i)=>s+(y-(a+b*i))**2,0)/Math.max(n-2,1));
-    fc=fcM.map((m,k)=>{ const x=n-1+k+1, y=Math.max(0,a+b*x), e=1.28*sd*Math.sqrt(1+1/n+(x-xm)**2/(sxx||1)); return {m,y,lo:Math.max(0,y-e),hi:y+e}; });
-    fc.slope=b;
-  }
-  // chart
-  const labs=[...series.map(p=>p.m)]; fcM.forEach(m=>{ if(!labs.includes(m)) labs.push(m); });
-  const idx=m=>labs.indexOf(m);
-  const act=labs.map(m=>{ const p=series.find(s=>s.m===m); return p?p.v:null; });
-  const fcl=labs.map(()=>null), lo=labs.map(()=>null), hi=labs.map(()=>null);
-  if(fc){ const li=idx(lastFull); const lv=act[li]; fcl[li]=lv; lo[li]=lv; hi[li]=lv; fc.forEach(f=>{ const i=idx(f.m); fcl[i]=+f.y.toFixed(1); lo[i]=+f.lo.toFixed(1); hi[i]=+f.hi.toFixed(1); }); }
-  if(charts.chFc) charts.chFc.destroy();
-  const s1=css('--s1'), s2=css('--s2'), ink2=css('--ink-2'), line=css('--line'), muted=css('--muted');
-  charts.chFc = new Chart($('chFc'), {type:'line', data:{labels:labs.map(mLab), datasets:[
-      {label:'Low',data:lo,borderWidth:0,pointRadius:0,fill:false,spanGaps:true},
-      {label:'High',data:hi,borderWidth:0,pointRadius:0,fill:'-1',backgroundColor:hexA(s2,.16),spanGaps:true},
-      {label:'Forecast',data:fcl,borderColor:s2,borderDash:[6,4],borderWidth:2,pointRadius:4,pointBackgroundColor:s2,pointBorderColor:css('--surface'),pointBorderWidth:2,spanGaps:true,tension:0},
-      {label:'Actual',data:act,borderColor:s1,borderWidth:2,pointRadius:3,pointHoverRadius:5,pointBackgroundColor:s1,pointBorderColor:css('--surface'),pointBorderWidth:2,tension:.25,fill:false}]},
-    options:{responsive:true,maintainAspectRatio:false,animation:{duration:250},interaction:{mode:'index',intersect:false},
-      plugins:{legend:{display:false},tooltip:{backgroundColor:css('--band'),padding:10,cornerRadius:6,filter:i=>i.raw!=null&&i.dataset.label!=='Low'&&i.dataset.label!=='High',
-        callbacks:{label:c=>{ if(c.dataset.label==='Forecast'){ const f=fc&&fc.find(x=>mLab(x.m)===c.label); return f?` Forecast: ${f.y.toFixed(0)} (range ${f.lo.toFixed(0)}–${f.hi.toFixed(0)})`:null; } return ` ${c.dataset.label}: ${c.raw}${partial&&c.dataIndex===idx(curM)?' (month in progress)':''}`; }}}},
-      scales:{x:{grid:{display:false},border:{display:false},ticks:{color:ink2,font:{family:'IBM Plex Sans',size:11},maxRotation:0,autoSkip:true}},
-              y:{beginAtZero:true,grid:{color:line},border:{display:false},ticks:{color:muted,precision:0,font:{family:'IBM Plex Sans',size:11}}}}}});
-  note.textContent = fc ? `Trend: ${fc.slope>=0?'+':''}${fc.slope.toFixed(1)} RFQs per month over the last ${hist.length} full months.${partial?' '+mLab(curM)+' is still in progress and is shown but not used in the trend.':''}`
-                        : 'At least 4 full months of data are needed for a forecast. Widen the date range or choose All years.';
-
-  // projection panel
-  const recent = sub.filter(r=>r.d.slice(0,7)>=(hist[0]?hist[0].m:'0000') && r.d.slice(0,7)<=lastFull);
-  const avgTon = recent.length?sum(recent,x=>x.ton)/recent.length:A.avg, avgTo = recent.length?sum(recent,x=>x.to)/recent.length:(A.n?A.to/A.n:0);
-  const tat = sub.filter(r=>r.s&&r.s>=r.d&&r.d>=mAdd(curM,-3)+'-01').map(r=>(new Date(r.s)-new Date(r.d))/864e5);
-  const tatAll = sub.filter(r=>r.s&&r.s>=r.d).map(r=>(new Date(r.s)-new Date(r.d))/864e5);
-  const T = tat.length>=5?tat:tatAll, tatAvg = T.length?T.reduce((a,b)=>a+b,0)/T.length:null;
-  const row=(k,v,s)=>`<div><span>${k}</span><b>${v}${s?`<small>${s}</small>`:''}</b></div>`;
-  let h='';
-  if(fc){
-    const n3=fc.reduce((s,f)=>s+f.y,0), l3=fc.reduce((s,f)=>s+f.lo,0), h3=fc.reduce((s,f)=>s+f.hi,0);
-    h+=row(`RFQs expected in ${mLab(fc[0].m)}`, N0(fc[0].y), `range ${N0(fc[0].lo)}–${N0(fc[0].hi)}`);
-    h+=row(`RFQs, next 3 months`, N0(n3), `range ${N0(l3)}–${N0(h3)}`);
-    h+=row('TON, next 3 months', N0(n3*avgTon), `at ${N2(avgTon)} TON per RFQ`);
-    h+=row('Turnover quoted, next 3 months', INRs(n3*avgTo), `at ${INRs(avgTo)} per RFQ`);
-    h+=row('Monthly trend', `<span class="pill ${fc.slope>0.3?'p-good':fc.slope<-0.3?'p-bad':'p-hold'}"><i></i>${fc.slope>0.3?'Rising':fc.slope<-0.3?'Falling':'Flat'}</span>`, `${fc.slope>=0?'+':''}${fc.slope.toFixed(1)} RFQs / month`);
-  } else h+=row('Forecast','—','needs 4+ full months');
-  h+=row('Avg quote turnaround', tatAvg==null?'—':tatAvg.toFixed(1)+' days', T===tat?'receipt to quote, last 3 months':'receipt to quote, all submitted');
-  $('proj').innerHTML = `<div class="proj">${h}</div>`;
-}
-
-let lastSub=[], lastAll=[];
-function renderCust(sub){
-  if(sub) lastSub=sub; sub=lastSub;
-  const q=$('cSearch').value.trim().toLowerCase();
-  const by={}; sub.forEach(r=>{ (by[r.c]=by[r.c]||[]).push(r); });
-  let rows=Object.entries(by).map(([name,L])=>{ const a=agg(L); return {name,...a,conv:sum(L.filter(r=>r.st==='Won'),x=>x.cv),share:0}; });
-  const T=agg(sub); rows.forEach(r=>r.share=T.to?r.to/T.to:0);
-  if(q) rows=rows.filter(r=>r.name.toLowerCase().includes(q));
-  const k=sortC.k; rows.sort((a,b)=> k==='name'? sortC.dir*a.name.localeCompare(b.name) : sortC.dir*((a[k]||0)-(b[k]||0)));
-  table('tCust',[{k:'name',l:'Customer'},{k:'n',l:'RFQs',f:N0,bar:1},{k:'ton',l:'TON',f:N2},{k:'pt',l:'Parts',f:N0},{k:'hi',l:'High prio',f:N0},{k:'avg',l:'Avg TON',f:N2},
-    {k:'to',l:'Exp. year turnover',f:INR},{k:'share',l:'Turnover %',f:P},{k:'conv',l:'Converted turnover',f:v=>v?INR(v):'<span style="color:var(--muted)">—</span>'}], rows,
-    {sortable:true,sort:sortC,onSort:kk=>{ sortC.dir = sortC.k===kk?-sortC.dir:(kk==='name'?1:-1); sortC.k=kk; renderCust(); },
-     click:v=>setF('c',v), total:q?null:{name:`Total · ${rows.length} customers`,...T,share:T.to?1:0,conv:sum(sub.filter(r=>r.st==='Won'),x=>x.cv)}});
-}
-function renderReg(all){
-  if(all) lastAll=all; all=lastAll;
-  const q=$('rSearch').value.trim().toLowerCase();
-  let rows = all.slice().sort((a,b)=>b.d.localeCompare(a.d));
-  if(q) rows=rows.filter(r=>(r.no+' '+r.c+' '+r.m+' '+r.pc+' '+r.ow.join(' ')).toLowerCase().includes(q));
-  $('regCount').textContent = `${N0(rows.length)} RFQs incl. pending · newest first${rows.length>300?' · showing 300':''}`;
-  const fd=s=>{ if(!s) return '—'; const [y,m,d]=s.split('-'); return `${d}-${MON[m-1]}-${y.slice(2)}`; };
-  const acl={Delay:'p-bad',Before:'p-good','On target':'p-info',Open:'p-hold','No target':'p-hold'};
-  table('tReg',[{k:'no',l:'RFQ no',f:v=>`<span class="mono">${esc(v)}</span>`},{k:'c',l:'Customer'},{k:'d',l:'Received',f:fd},{k:'t',l:'Target',f:fd},
-    {k:'s',l:'Quote sent',f:(v,r)=>r.p?'<span class="pill p-warn">Pending</span>':fd(v)},
-    {k:'al',l:'Alert',f:v=>`<span class="pill ${acl[v]}">${v==='Open'?'Within target':v}</span>`},
-    {k:'pc',l:'Process'},{k:'ed',l:'Type'},{k:'co',l:'Country'},{k:'rt',l:'RFQ'},{k:'ton',l:'TON',f:N2},{k:'pt',l:'Parts',f:N0},{k:'to',l:'Exp. turnover',f:INR},
-    {k:'owj',l:'Owner'},{k:'st',l:'Status'}],
-    rows.slice(0,300).map(r=>({...r,name:r.no,al:alertOf(r),owj:r.ow.join(', ')})));
-}
-
-// wiring
-$('from').onchange=e=>{ st.from=e.target.value; render(); };
-$('to').onchange=e=>{ st.to=e.target.value; render(); };
-[['f-ed','ed'],['f-rt','rt'],['f-pc','pc'],['f-c','c'],['f-ow','ow'],['f-pri','pri'],['f-co','co'],['f-status','status'],['f-pro','pro']].forEach(([id,k])=>$(id).onchange=e=>{ st[k]=e.target.value; render(); });
-document.querySelectorAll('#pm button').forEach(b=>b.onclick=()=>{ st.pm=b.dataset.v; if(st.status==='Regret'&&st.pm==='sub') st.status='All', $('f-status').value='All'; render(); });
-$('reset').onclick=()=>{ Object.assign(st,{ed:'All',rt:'All',pc:'All',c:'All',ow:'All',pri:'All',co:'All',status:'All',pro:'All',pm:'sub'}); setDataset(st.ds); render(); };
-$('cSearch').oninput=()=>renderCust();
-$('rSearch').oninput=()=>renderReg();
-const rerender=()=>{ if(started) render(); };
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change',rerender);
-new MutationObserver(rerender).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
-
-
-// ---------- theme ----------
-const SUN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
-const MOON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
-const isDark = () => { const t=document.documentElement.getAttribute('data-theme'); return t ? t==='dark' : matchMedia('(prefers-color-scheme: dark)').matches; };
-function paintThemeBtn(){ $('themeBtn').innerHTML = isDark() ? SUN+'Light' : MOON+'Dark'; }
-try { const t=localStorage.getItem('rfq-theme'); if(t) document.documentElement.setAttribute('data-theme',t); } catch(e){}
-$('themeBtn').onclick=()=>{ const t=isDark()?'light':'dark'; document.documentElement.setAttribute('data-theme',t); try{ localStorage.setItem('rfq-theme',t); }catch(e){} };
-paintThemeBtn();
-new MutationObserver(paintThemeBtn).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change',paintThemeBtn);
-
-// ---------- start / refresh ----------
-let started=false;
-function banner(msg, err){ const b=$('banner'); b.hidden=!msg; b.className='banner'+(err?' err':''); b.innerHTML=msg||''; }
-function showData(){
-  const ks=KEYS();
-  if(!ks.length){ banner('No RFQ data found. The dashboard reads sheets named like <b>Sub 2025</b> or <b>submitted 2026</b> with RFQ No, Customer name, RFQ Receipt Date, Quotation Sent Date and Process columns.', true); return; }
-  if(!started || !(st.ds==='all' ? ks.length>1 : ks.includes(st.ds))) setDataset(ks[ks.length-1]);
-  else setDataset(st.ds, true);
-  started=true; render();
-}
-if(window.Chart) Chart.defaults.font.family='IBM Plex Sans, system-ui, sans-serif';
-else window.Chart=function(){ return {destroy(){}}; };
-
-// ---------- Excel live mode ----------
-let dlg=null, stamp='', debounce=null, loading=false;
-function setLive(txt, busy){ $('live').hidden=false; $('live').className='live'+(busy?' busy':''); $('liveTxt').textContent=txt; }
-async function loadFromExcel(){
-  if(loading) return; loading=true; setLive('Reading workbook…', true);
-  try{
-    await Excel.run(async ctx=>{
-      const ws=ctx.workbook.worksheets; ws.load('items/name'); await ctx.sync();
-      const src=ws.items.filter(s=>RFQP.yearOf(s.name));
-      const used=src.map(s=>{ const u=s.getUsedRangeOrNullObject(true); u.load('rowCount,columnCount,rowIndex,columnIndex'); return u; });
-      await ctx.sync();
-      const heads=src.map((s,i)=> used[i].isNullObject ? null : s.getRangeByIndexes(0,0,1,Math.min(used[i].columnIndex+used[i].columnCount,120)).load('values'));
-      await ctx.sync();
-      const parts=[];
-      src.forEach((s,i)=>{ if(!heads[i]) return; const h=heads[i].values[0], I=RFQP.mapHeaders(h), n=used[i].rowIndex+used[i].rowCount;
-        const cols=[...new Set(Object.values(I).filter(x=>x>=0))];
-        parts.push({s,name:s.name,h,n,cols,ranges:n>1?cols.map(c=>s.getRangeByIndexes(1,c,n-1,1).load('values')):[]}); });
-      await ctx.sync();
-      const out={}, names={}, errs=[];
-      for(const p of parts){
-        const rows=[]; for(let r=0;r<p.n-1;r++){ const row=[]; p.cols.forEach((c,j)=>row[c]=p.ranges[j].values[r][0]); rows.push(row); }
-        const res=RFQP.parse(p.h,rows), y=RFQP.yearOf(p.name);
-        if(res.error){ errs.push(`${esc(p.name)}: ${res.error}`); continue; }
-        out[y]=(out[y]||[]).concat(res.recs); names[y]=names[y]?names[y]+' + '+p.name:p.name;
-      }
-      RAW=out; SHEETS=names;
-      banner(errs.length?'Some sheets were skipped. '+errs.join(' · '):'', errs.length>0);
-      if(!watching){ watching=true; parts.forEach(p=>p.s.onChanged.add(onSheetChange)); ctx.workbook.worksheets.onAdded&&ctx.workbook.worksheets.onAdded.add(onSheetChange); await ctx.sync(); }
+<script src="nxparser.js"></script>
+<script>var __defProp = Object.defineProperty;
+var __defProps = Object.defineProperties;
+var __getOwnPropDescs = Object.getOwnPropertyDescriptors;
+var __getOwnPropSymbols = Object.getOwnPropertySymbols;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __propIsEnum = Object.prototype.propertyIsEnumerable;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __spreadValues = (a, b) => {
+  for (var prop in b || (b = {}))
+    if (__hasOwnProp.call(b, prop))
+      __defNormalProp(a, prop, b[prop]);
+  if (__getOwnPropSymbols)
+    for (var prop of __getOwnPropSymbols(b)) {
+      if (__propIsEnum.call(b, prop))
+        __defNormalProp(a, prop, b[prop]);
+    }
+  return a;
+};
+var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
+(function() {
+  "use strict";
+  const EMBED = null;
+  const MODE = /* @__PURE__ */ ((q) => q === "dialog" || q === "tab" ? q : "main")(new URLSearchParams(location.search).get("mode"));
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s != null ? s : "").replace(/[&<>"]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[m]);
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const fmtD = (s) => {
+    if (!s) return "\u2014";
+    const [y, m, d] = s.split("-");
+    return `${d}-${MON[+m - 1]}-${y.slice(2)}`;
+  };
+  const fmtStamp = (dt) => {
+    const h = dt.getHours();
+    return `${String(dt.getDate()).padStart(2, "0")}-${MON[dt.getMonth()]}-${dt.getFullYear()} ${String(h % 12 || 12).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+  };
+  const N0 = (v) => (v || 0).toLocaleString("en-IN");
+  const P = (a, b) => b ? Math.round(a / b * 100) + "%" : "0%";
+  const T0 = /* @__PURE__ */ new Date();
+  const todayStr = `${T0.getFullYear()}-${String(T0.getMonth() + 1).padStart(2, "0")}-${String(T0.getDate()).padStart(2, "0")}`;
+  const addDays = (s, n) => {
+    const d = /* @__PURE__ */ new Date(s + "T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  };
+  const STAGE_META = {
+    "Development": { c: "--g1", d: "Sample under development" },
+    "Sample": { c: "--g2", d: "Submitted / approved / PO pending" },
+    "PPAP": { c: "--g3", d: "PPAP run, submission or approval pending" },
+    "Approved for production": { c: "--g4", d: "PPAP approved" },
+    "Revised / Discontinued": { c: "--g5", d: "Drawing revised or design discontinued" }
+  };
+  const PIPE = ["Development", "Sample", "PPAP", "Approved for production", "Revised / Discontinued"];
+  const DELS = ["Dispatched", "Ready for dispatch", "Hold", "Regular production", "Not dispatched"];
+  const DEL_T = { "Dispatched": "t-good", "Ready for dispatch": "t-info", "Hold": "t-warn", "Regular production": "t-good", "Not dispatched": "t-neu" };
+  const PS_T = (ps) => ps === "PPAP Approved" ? "t-good" : ps === "Sample Rejected" ? "t-bad" : ps === "Design Discontinued" || ps === "Drawing Revised" ? "t-neu" : /PPAP/.test(ps) ? "t-warn" : /Sample/.test(ps) || ps === "Project PO Pending" ? "t-info" : "t-neu";
+  let ALL = [], DATA = [], HID = [], IMG = {}, started = false;
+  const F = { q: "", proj: "All", ps: "All", stage: "All", del: "All", po: "All", from: "", to: "" };
+  const SORT = { k: "proj", dir: 1 };
+  let TQ = "";
+  function prep(recs) {
+    recs.forEach((r) => {
+      r.key = r.sheet + "|" + r.row;
+      r.s = (r.pn + " " + r.pd + " " + r.po + " " + r.track + " " + r.agent + " " + r.recent + " " + r.ps + " " + r.sa + " " + r.arena + " " + r.note).toLowerCase();
     });
-    stamp=new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
-    setLive(`Live from workbook · updated ${stamp}`);
-    showData(); sendToDialog();
-  }catch(e){ setLive('Could not read workbook', true); banner('Could not read the workbook: '+esc(e.message||e)+'. Press Refresh to try again.', true); }
-  loading=false;
-}
-let watching=false;
-function onSheetChange(){ setLive('Change detected…', true); clearTimeout(debounce); debounce=setTimeout(loadFromExcel, 1500); return Promise.resolve(); }
-
-function openBig(){
-  const url=location.origin+location.pathname+'?mode=dialog';
-  Office.context.ui.displayDialogAsync(url,{height:92,width:92,displayInIframe:true},res=>{
-    if(res.status!==Office.AsyncResultStatus.Succeeded){ banner('Could not open the large window: '+esc(res.error.message), true); return; }
-    dlg=res.value;
-    dlg.addEventHandler(Office.EventType.DialogMessageReceived, m=>{ if(m.message==='ready') sendToDialog(); if(m.message==='refresh') loadFromExcel(); });
-    dlg.addEventHandler(Office.EventType.DialogEventReceived, ()=>{ dlg=null; });
+    ALL = recs;
+    DATA = recs.filter((r) => !r.hidden);
+    HID = recs.filter((r) => r.hidden);
+  }
+  function filtered(skip) {
+    const q = F.q.trim().toLowerCase();
+    return DATA.filter((r) => (F.proj === "All" || r.project === F.proj) && (skip === "ps" || F.ps === "All" || r.ps === F.ps) && (skip === "stage" || F.stage === "All" || r.stage === F.stage) && (skip === "del" || F.del === "All" || r.del === F.del) && (F.po === "All" || F.po === "yes" === r.hasPO) && (!q || r.s.includes(q)));
+  }
+  function fillSelects() {
+    const psList = [...NXP.PS.filter((p) => DATA.some((r) => r.ps === p)), ...[...new Set(DATA.map((r) => r.ps))].filter((p) => !NXP.PS.includes(p))];
+    const opt = (id, vals, key) => {
+      const el = $(id);
+      if (!["All", ...vals].includes(F[key])) F[key] = "All";
+      el.innerHTML = ["All", ...vals].map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
+      el.value = F[key];
+    };
+    opt("f-ps", psList, "ps");
+    opt("f-stage", PIPE.filter((s) => DATA.some((r) => r.stage === s)).concat(DATA.some((r) => r.stage === "Not set") ? ["Not set"] : []), "stage");
+    opt("f-del", DELS.filter((s) => DATA.some((r) => r.del === s)), "del");
+    $("f-po").value = F.po;
+    $("q").value = F.q;
+    $("proj").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.v === F.proj));
+  }
+  function setF(k, v, toggle) {
+    F[k] = toggle && F[k] === v ? "All" : v;
+    fillSelects();
+    render();
+  }
+  function clearAll() {
+    Object.assign(F, { q: "", proj: "All", ps: "All", stage: "All", del: "All", po: "All", from: "", to: "" });
+    TQ = "";
+    $("tq").value = "";
+    fillSelects();
+    render();
+  }
+  function summary() {
+    const L = { proj: "Project", ps: "Part status", stage: "Stage", del: "Delivery" };
+    const c = [];
+    if (F.q) c.push(["q", "Search", F.q]);
+    for (const k in L) if (F[k] !== "All") c.push([k, L[k], F[k]]);
+    if (F.po !== "All") c.push(["po", "PO", F.po === "yes" ? "PO received" : "No PO"]);
+    $("summary").innerHTML = "<b>Viewing:</b> " + (c.length ? c.map(([k, l, v]) => `<button class="chip" type="button" data-k="${k}"><span>${l}:</span>${esc(v)} \u2715</button>`).join("") : '<span class="chip fixed">All visible rows \xB7 Earth Truss + Anchor</span>');
+    $("summary").querySelectorAll("button.chip").forEach((b) => b.onclick = () => {
+      const k = b.dataset.k;
+      if (k === "date") {
+        F.from = "";
+        F.to = "";
+      } else if (k === "q") F.q = "";
+      else F[k] = "All";
+      fillSelects();
+      render();
+    });
+  }
+  const charts = {};
+  function mk(id, cfg) {
+    if (charts[id]) charts[id].destroy();
+    charts[id] = new Chart($(id), cfg);
+  }
+  function tipOpts(cb) {
+    return { backgroundColor: css("--band"), titleColor: "#fff", bodyColor: "#e9eaf7", padding: 10, cornerRadius: 7, titleFont: { family: "Plus Jakarta Sans", weight: "600" }, bodyFont: { family: "Plus Jakarta Sans" }, callbacks: cb || {} };
+  }
+  function hbar(id, labels, datasets, click, stack) {
+    const ink2 = css("--ink-2"), line = css("--line"), muted = css("--muted");
+    mk(id, {
+      type: "bar",
+      data: { labels, datasets: datasets.map((d) => __spreadValues({ borderRadius: 3, borderSkipped: "start", maxBarThickness: 22, borderColor: css("--surface"), borderWidth: stack ? { right: 1 } : 0 }, d)) },
+      options: {
+        indexAxis: "y",
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 300 },
+        interaction: { mode: "index", intersect: false, axis: "y" },
+        plugins: { legend: { display: false }, tooltip: tipOpts() },
+        scales: {
+          x: { stacked: !!stack, beginAtZero: true, grid: { color: line }, border: { display: false }, ticks: { color: muted, precision: 0, font: { family: "Plus Jakarta Sans", size: 11 } } },
+          y: { stacked: !!stack, grid: { display: false }, border: { display: false }, ticks: { color: ink2, autoSkip: false, font: { family: "Plus Jakarta Sans", size: 11.5 } } }
+        },
+        onClick: click ? (e, els) => {
+          if (els.length) {
+            const i = els[0].index;
+            setTimeout(() => click(i), 0);
+          }
+        } : void 0,
+        onHover: click ? (e, els) => {
+          e.native.target.style.cursor = els.length ? "pointer" : "default";
+        } : void 0
+      }
+    });
+  }
+  function table(el, cols, rows, o = {}) {
+    if (!rows.length) {
+      $(el).innerHTML = `<div class="empty">${o.empty || "Nothing matches these filters."}</div>`;
+      return;
+    }
+    const th = cols.map((c) => `<th class="${c.n ? "n" : ""}${o.sort && c.s !== false ? " sortable" : ""}${c.int ? " internal" : ""}" ${o.sort && c.s !== false ? `data-k="${c.k}" tabindex="0"` : ""}>${c.l}${o.sort && o.sort.k === c.k ? `<span class="arr">${o.sort.dir > 0 ? " \u25B2" : " \u25BC"}</span>` : ""}</th>`).join("");
+    const tr = (r) => cols.map((c) => `<td class="${c.n ? "n " : ""}${c.cls || ""}${c.int ? " internal" : ""}">${c.f ? c.f(r[c.k], r) : esc(r[c.k])}</td>`).join("");
+    $(el).innerHTML = `<table><thead><tr>${th}</tr></thead><tbody>${rows.map((r, i) => `<tr class="clk" data-i="${i}">${tr(r)}</tr>`).join("")}${o.total ? `<tr class="tot">${tr(o.total)}</tr>` : ""}</tbody></table>`;
+    $(el).querySelectorAll("tr.clk").forEach((t) => t.onclick = () => (o.click || openRow)(rows[+t.dataset.i]));
+    if (o.sort) $(el).querySelectorAll("th.sortable").forEach((t) => {
+      const go = () => o.onSort(t.dataset.k);
+      t.onclick = go;
+      t.onkeydown = (e) => {
+        if (e.key === "Enter") go();
+      };
+    });
+  }
+  const projTag = (p) => `<span class="proj ${p === "Anchor" ? "an" : "et"}">${p === "Anchor" ? "ANCHOR" : "EARTH TRUSS"}</span>`;
+  const psPill = (ps) => `<span class="pill ${PS_T(ps)}"><i></i>${esc(ps)}</span>`;
+  const delPill = (d, r) => `<span class="pill ${DEL_T[d] || "t-neu"}"><i></i>${esc(d)}${r && r.dDate ? " \xB7 " + fmtD(r.dDate) : ""}</span>`;
+  const flagHtml = (r) => (r.critical ? '<span class="flag">CRITICAL</span>' : "") + (r.high ? '<span class="flag hi">HIGH PRIORITY</span>' : "");
+  const thumb = (r) => `<span class="thumb ${IMG[r.key] ? "" : "none"}" data-img="${esc(r.key)}" style="${IMG[r.key] ? `background-image:url('${IMG[r.key]}')` : ""}" role="img" aria-label="Part image ${esc(r.pn)}"></span>`;
+  function render() {
+    if (!started) return;
+    summary();
+    const L = filtered(), n = L.length, uniq = new Set(L.map((r) => r.pn)).size;
+    const cnt = (f) => L.filter(f).length;
+    const disp = cnt((r) => r.del === "Dispatched"), reg = cnt((r) => r.del === "Regular production"), ready = cnt((r) => r.del === "Ready for dispatch"), hold = cnt((r) => r.del === "Hold"), notd = cnt((r) => r.del === "Not dispatched");
+    const overdue = cnt((r) => r.ready && r.ready < todayStr && r.del === "Not dispatched" && r.stage !== "Revised / Discontinued");
+    const appr = cnt((r) => r.stage === "Approved for production"), ppap = cnt((r) => r.stage === "PPAP"), samp = cnt((r) => r.stage === "Sample" || r.stage === "Development"), disc = cnt((r) => r.stage === "Revised / Discontinued");
+    const k = (lab, val, sub, c, act, cls = "") => `<${act ? 'button type="button"' : "div"} class="kpi ${cls}" ${act ? `data-act="${act}" aria-pressed="${act === "del:" + F.del || act === "stage:" + F.stage || act === "ps:" + F.ps}"` : ""} style="${c ? `--c:var(${c})` : ""}"><div class="k">${c ? "<i></i>" : ""}${lab}</div><div class="v">${N0(val)}</div><div class="s">${sub || "&nbsp;"}</div></${act ? "button" : "div"}>`;
+    $("kpis").innerHTML = k("Total sample lots", n, `${N0(uniq)} unique part numbers \xB7 ${N0(HID.length)} hidden rows not counted`, "", "", "hero") + k("Dispatched", disp + reg, `${P(disp + reg, n)} of lots${reg ? ` \xB7 ${reg} under regular production` : ""}`, "--good", "del:Dispatched") + k("Ready for dispatch", ready, "waiting to ship", "--info", "del:Ready for dispatch") + k("Hold", hold, "dispatch on hold", "--warn", "del:Hold") + k("Not dispatched yet", notd, "in development or awaiting sample", "--g1", "del:Not dispatched") + k("PPAP approved", appr, `${P(appr, n)} \xB7 approved for production`, "--g4", "stage:Approved for production") + k("PPAP pending", ppap, "run, submission or approval pending", "--g3", "stage:PPAP") + k("PO received", cnt((r) => r.hasPO), `${N0(cnt((r) => !r.hasPO))} lots without PO`, "--accent", "po") + k("Unique parts", uniq, "distinct part numbers in view", "--p1", "") + k("Sample under development", cnt((r) => r.ps === "Sample Under Development"), "not yet submitted", "--g1", "ps:Sample Under Development") + k("PPAP submission pending", cnt((r) => r.ps === "PPAP Submission Pending"), "PPAP to be submitted", "--g3", "ps:PPAP Submission Pending") + k("Overdue readiness", overdue, "readiness date passed, not dispatched", "--bad", "");
+    $("kpis").querySelectorAll("button.kpi").forEach((b) => b.onclick = () => {
+      const a = b.dataset.act;
+      if (a === "po") setF("po", "yes", true);
+      else {
+        const [kk, v] = a.split(":");
+        setF(kk, v, true);
+      }
+    });
+    const LS = filtered("stage");
+    $("pipe").innerHTML = PIPE.map((s) => {
+      const c = LS.filter((r) => r.stage === s).length;
+      return `<button type="button" data-s="${s}" aria-pressed="${F.stage === s}" style="--c:var(${STAGE_META[s].c})"><span>${s}</span><b>${c}</b><small>${STAGE_META[s].d} \xB7 ${P(c, LS.length)}</small></button>`;
+    }).join("");
+    $("pipe").querySelectorAll("button").forEach((b) => b.onclick = () => setF("stage", b.dataset.s, true));
+    const LP = filtered("ps");
+    const psl = [...NXP.PS, ...[...new Set(DATA.map((r) => r.ps))].filter((p) => !NXP.PS.includes(p))].filter((p) => DATA.some((r) => r.ps === p));
+    $("psBox").style.height = Math.max(200, psl.length * 30 + 40) + "px";
+    hbar(
+      "chPS",
+      psl,
+      [
+        { label: "Earth Truss", data: psl.map((p) => LP.filter((r) => r.ps === p && r.project === "Earth Truss").length), backgroundColor: psl.map((p) => F.ps === "All" || F.ps === p ? css("--p1") : css("--line-2")) },
+        { label: "Anchor", data: psl.map((p) => LP.filter((r) => r.ps === p && r.project === "Anchor").length), backgroundColor: psl.map((p) => F.ps === "All" || F.ps === p ? css("--p2") : css("--line-2")) }
+      ],
+      (i) => setF("ps", psl[i], true),
+      true
+    );
+    const prow = (name, l) => ({ name, n: l.length, u: new Set(l.map((r) => r.pn)).size, d: l.filter((r) => r.del === "Dispatched" || r.del === "Regular production").length, rd: l.filter((r) => r.del === "Ready for dispatch").length, h: l.filter((r) => r.del === "Hold").length, a: l.filter((r) => r.stage === "Approved for production").length, pp: l.filter((r) => r.stage === "PPAP").length, po: l.filter((r) => r.hasPO).length });
+    const prs = ["Earth Truss", "Anchor"].map((p) => prow(p, L.filter((r) => r.project === p))).filter((r) => r.n);
+    table(
+      "tProj",
+      [{ k: "name", l: "Project", f: (v) => projTag(v) }, { k: "n", l: "Lots", n: 1 }, { k: "u", l: "Unique", n: 1 }, { k: "d", l: "Dispatched", n: 1 }, { k: "rd", l: "Ready", n: 1 }, { k: "h", l: "Hold", n: 1 }, { k: "pp", l: "PPAP pend.", n: 1 }, { k: "a", l: "PPAP appr.", n: 1 }, { k: "po", l: "With PO", n: 1 }],
+      prs,
+      { click: (r) => setF("proj", r.name, true), total: prs.length > 1 ? __spreadProps(__spreadValues({}, prow("Total", L)), { name: "Total" }) : null }
+    );
+    $("tProj").querySelectorAll("tr.tot td")[0] && ($("tProj").querySelector("tr.tot td").innerHTML = "<b>Total</b>");
+    const LD = filtered("del");
+    const dl = DELS.filter((d) => DATA.some((r) => r.del === d));
+    const dcol = { "Dispatched": "--good", "Ready for dispatch": "--info", "Hold": "--warn", "Regular production": "--g4", "Not dispatched": "--g1" };
+    hbar("chDel", dl, [{ label: "Lots", data: dl.map((d) => LD.filter((r) => r.del === d).length), backgroundColor: dl.map((d) => F.del === "All" || F.del === d ? css(dcol[d]) : css("--line-2")) }], (i) => setF("del", dl[i], true));
+    const mm = {};
+    L.filter((r) => r.dDate).forEach((r) => {
+      const m = r.dDate.slice(0, 7);
+      (mm[m] = mm[m] || { et: 0, an: 0 })[r.project === "Anchor" ? "an" : "et"]++;
+    });
+    const mk_ = Object.keys(mm).sort().slice(-12);
+    const ink2 = css("--ink-2"), line = css("--line"), muted = css("--muted");
+    mk("chMonth", {
+      type: "bar",
+      data: { labels: mk_.map((m) => MON[+m.slice(5) - 1] + " " + m.slice(2, 4)), datasets: [
+        { label: "Earth Truss", data: mk_.map((m) => mm[m].et), backgroundColor: css("--p1"), borderRadius: 3, maxBarThickness: 34, borderColor: css("--surface"), borderWidth: { top: 1 } },
+        { label: "Anchor", data: mk_.map((m) => mm[m].an), backgroundColor: css("--p2"), borderRadius: 3, maxBarThickness: 34 }
+      ] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 300 },
+        interaction: { mode: "index", intersect: false },
+        plugins: { legend: { display: false }, tooltip: tipOpts() },
+        scales: { x: { stacked: true, grid: { display: false }, border: { display: false }, ticks: { color: ink2, font: { family: "Plus Jakarta Sans", size: 11 }, maxRotation: 0 } }, y: { stacked: true, beginAtZero: true, grid: { color: line }, border: { display: false }, ticks: { color: muted, precision: 0 } } }
+      }
+    });
+    const cmpL = ["Lots", "Dispatched", "Hold", "PPAP pending", "PPAP approved", "With PO"];
+    const cv = (p) => {
+      const l = L.filter((r) => r.project === p);
+      return [l.length, l.filter((r) => r.del === "Dispatched" || r.del === "Regular production").length, l.filter((r) => r.del === "Hold").length, l.filter((r) => r.stage === "PPAP").length, l.filter((r) => r.stage === "Approved for production").length, l.filter((r) => r.hasPO).length];
+    };
+    mk("chCmp", {
+      type: "bar",
+      data: { labels: cmpL, datasets: [{ label: "Earth Truss", data: cv("Earth Truss"), backgroundColor: css("--p1"), borderRadius: 3, maxBarThickness: 22 }, { label: "Anchor", data: cv("Anchor"), backgroundColor: css("--p2"), borderRadius: 3, maxBarThickness: 22 }] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 300 },
+        interaction: { mode: "index", intersect: false },
+        plugins: { legend: { display: false }, tooltip: tipOpts() },
+        scales: { x: { grid: { display: false }, border: { display: false }, ticks: { color: ink2, font: { family: "Plus Jakarta Sans", size: 11 }, maxRotation: 0, autoSkip: false } }, y: { beginAtZero: true, grid: { color: line }, border: { display: false }, ticks: { color: muted, precision: 0 } } }
+      }
+    });
+    const since = addDays(todayStr, -60);
+    const rec = L.filter((r) => r.dDate && r.dDate >= since).sort((a, b) => b.dDate.localeCompare(a.dDate));
+    table("tRecent", [{ k: "dDate", l: "Date", f: fmtD, cls: "nw" }, { k: "project", l: "Project", f: projTag }, { k: "pn", l: "Part no", f: (v) => `<span class="mono">${esc(v)}</span>`, cls: "nw" }, { k: "pd", l: "Description", cls: "wr" }, { k: "qtyTxt", l: "Qty", n: 1 }, { k: "agent", l: "Agent" }, { k: "track", l: "Tracking", f: (v) => `<span class="mono">${esc(v)}</span>`, cls: "nw" }], rec, { empty: "No dispatches in the last 60 days for these filters." });
+    const up = L.filter((r) => r.del !== "Dispatched" && r.del !== "Regular production" && r.stage !== "Revised / Discontinued").sort((a, b) => (a.ready || "9999").localeCompare(b.ready || "9999"));
+    table("tUp", [{ k: "ready", l: "Readiness", f: (v, r) => v ? v < todayStr ? `<span style="color:var(--bad);font-weight:600">${fmtD(v)} \xB7 overdue</span>` : fmtD(v) : esc(r.readyTxt || "\u2014"), cls: "nw" }, { k: "project", l: "Project", f: projTag }, { k: "pn", l: "Part no", f: (v) => `<span class="mono">${esc(v)}</span>`, cls: "nw" }, { k: "pd", l: "Description", cls: "wr" }, { k: "ps", l: "Part status", f: psPill }, { k: "del", l: "Delivery", f: (v, r) => delPill(v) }, { k: "po", l: "PO", cls: "nw" }], up, { empty: "Every lot in this view is dispatched." });
+    const why = (r) => {
+      const w = [];
+      if (r.critical) w.push("Critical in timeline");
+      if (r.high) w.push("High priority");
+      if (r.ps === "Sample Rejected") w.push("Sample rejected");
+      if (r.ready && r.ready < todayStr && r.del === "Not dispatched" && r.stage !== "Revised / Discontinued") w.push("Readiness date passed");
+      if (r.del === "Hold" && r.stage !== "Revised / Discontinued") w.push("Dispatch on hold");
+      return w;
+    };
+    const att = L.map((r) => __spreadProps(__spreadValues({}, r), { why: why(r) })).filter((r) => r.why.length).sort((a, b) => b.why.length - a.why.length);
+    $("attnPanel").hidden = !att.length && !L.length;
+    table("tAttn", [{ k: "why", l: "Why", f: (v) => v.map((x) => `<span class="pill ${/Critical|rejected/.test(x) ? "t-bad" : "t-warn"}" style="margin:1px 4px 1px 0">${esc(x)}</span>`).join("") }, { k: "project", l: "Project", f: projTag }, { k: "pn", l: "Part no", f: (v) => `<span class="mono">${esc(v)}</span>`, cls: "nw" }, { k: "pd", l: "Description", cls: "wr" }, { k: "ps", l: "Part status", f: psPill }, { k: "comments", l: "Sheet comment", cls: "wr internal" }], att, { empty: "Nothing flagged in this view." });
+    renderAll(L);
+    $("hidPanel").hidden = !HID.length;
+    $("hidSum").textContent = `Hidden rows in the sheet (${HID.length}) \xB7 not counted`;
+    table("tHid", [{ k: "project", l: "Project", f: projTag }, { k: "row", l: "Excel row", n: 1 }, { k: "pn", l: "Part no", f: (v) => `<span class="mono">${esc(v)}</span>`, cls: "nw" }, { k: "pd", l: "Description", cls: "wr" }, { k: "ps", l: "Part status", f: psPill }, { k: "del", l: "Delivery", f: (v, r) => delPill(v, r) }, { k: "sa", l: "Sample approval", cls: "wr" }], HID);
+  }
+  const ACOLS = [
+    { k: "img", l: "Image", s: false, f: (v, r) => thumb(r) },
+    { k: "project", l: "Project", f: projTag },
+    { k: "pn", l: "Part no", f: (v, r) => `<span class="mono">${esc(v)}</span>${flagHtml(r)}`, cls: "nw" },
+    { k: "rev", l: "Rev.", cls: "nw" },
+    { k: "revAtul", l: "Rev. w/ Atul", int: 1, cls: "nw" },
+    { k: "pd", l: "Description", cls: "wr" },
+    { k: "ps", l: "Part status", f: psPill },
+    { k: "after", l: "After sample status", cls: "wr internal", int: 1 },
+    { k: "qty", l: "Qty", n: 1, f: (v, r) => esc(r.qtyTxt || "\u2014") },
+    { k: "po", l: "PO", cls: "nw" },
+    { k: "ready", l: "Readiness", f: (v, r) => v ? fmtD(v) : esc(r.readyTxt || "\u2014"), cls: "nw" },
+    { k: "del", l: "Delivery", f: (v, r) => delPill(v, r) },
+    { k: "agent", l: "Agent" },
+    { k: "track", l: "Tracking", f: (v) => `<span class="mono">${esc(v)}</span>`, cls: "nw" },
+    { k: "sa", l: "Sample approval", cls: "wr" },
+    { k: "arena", l: "PPAP no.", cls: "nw" },
+    { k: "note", l: "Note", cls: "wr", int: 1 }
+  ];
+  let lastL = [];
+  function renderAll(L) {
+    if (L) lastL = L;
+    const q = TQ.trim().toLowerCase();
+    let rows = q ? lastL.filter((r) => r.s.includes(q)) : lastL.slice();
+    const { k, dir } = SORT;
+    rows.sort((a, b) => {
+      var _a, _b;
+      const x = (_a = a[k]) != null ? _a : "", y = (_b = b[k]) != null ? _b : "";
+      if (k === "proj") return ((a.project === "Anchor") - (b.project === "Anchor") || a.row - b.row) * dir;
+      return (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y))) * dir || a.row - b.row;
+    });
+    $("cnt").textContent = `${N0(rows.length)} sample lots \xB7 ${N0(new Set(rows.map((r) => r.pn)).size)} unique part numbers`;
+    table("tAll", ACOLS, rows, { sort: SORT, onSort: (kk) => {
+      SORT.dir = SORT.k === kk ? -SORT.dir : 1;
+      SORT.k = kk;
+      renderAll();
+    } });
+  }
+  function openRow(r) {
+    const hist = ALL.filter((x) => x.pn === r.pn).sort((a, b) => a.row - b.row);
+    $("dwTitle").innerHTML = `${esc(r.pn)} ${projTag(r.project)}`;
+    const kv = [
+      ["Description", esc(r.pd)],
+      ["Part status", psPill(r.ps)],
+      ["Stage", esc(r.stage)],
+      ["Latest revision", esc(r.rev || "\u2014")],
+      ["Revision w/ Atul", esc(r.revAtul || "\u2014"), 1],
+      ["After sample status", esc(r.after || "\u2014"), 1],
+      ["Qty", esc(r.qtyTxt || "\u2014")],
+      ["PO number", esc(r.po || "\u2014")],
+      ["Sample readiness", r.ready ? fmtD(r.ready) : esc(r.readyTxt || "\u2014")],
+      ["Delivery", delPill(r.del, r)],
+      ["Recent status", esc(r.recent || "\u2014")],
+      ["Shipping agent", esc(r.agent || "\u2014")],
+      ["Tracking no.", esc(r.track || "\u2014")],
+      ["Sample approval", esc(r.sa || "\u2014")],
+      ["PPAP number", esc(r.arena || "\u2014")],
+      ["Production approval", esc(r.prod || "\u2014")],
+      ["Note", esc(r.note || "\u2014"), 1],
+      ["Sheet comment", esc(r.comments || "\u2014"), 1],
+      ["Excel row", `${esc(r.sheet)} \xB7 row ${r.row}${r.hidden ? " (hidden)" : ""}`, 1]
+    ];
+    $("dwBody").innerHTML = (IMG[r.key] ? `<img class="bigimg" src="${IMG[r.key]}" alt="Part image ${esc(r.pn)}">` : "") + `<div class="kv">${kv.map(([a, b, int]) => `<div class="${int ? "internal" : ""}">${a}</div><div class="${int ? "internal" : ""}">${b}</div>`).join("")}</div><h2 style="font:700 17px var(--f-num);text-transform:uppercase;letter-spacing:.04em;margin:4px 0 0">History of this part number <small style="font:400 12px var(--f-ui);color:var(--muted);text-transform:none">${hist.length} lot(s)</small></h2>
+     <div class="tbl"><table><thead><tr><th>Row</th><th>Rev.</th><th>Part status</th><th>Delivery</th><th>PO</th></tr></thead><tbody>${hist.map((x) => `<tr><td>${x.row}${x.hidden ? " \xB7 hidden" : ""}</td><td>${esc(x.rev || "\u2014")}</td><td>${psPill(x.ps)}</td><td>${delPill(x.del, x)}</td><td>${esc(x.po || "\u2014")}</td></tr>`).join("")}</tbody></table></div>`;
+    $("drawer").hidden = false;
+    $("dwClose").focus();
+  }
+  function closeDrawer() {
+    $("drawer").hidden = true;
+  }
+  $("dwClose").onclick = closeDrawer;
+  $("drawer").onclick = (e) => {
+    if (e.target.id === "drawer") closeDrawer();
+  };
+  addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeDrawer();
   });
-}
-function sendToDialog(){
-  if(!dlg) return;
-  const s=JSON.stringify({RAW,SHEETS,stamp}), size=24000, n=Math.ceil(s.length/size), id=Date.now();
-  try{ for(let i=0;i<n;i++) dlg.messageChild(JSON.stringify({id,i,n,s:s.slice(i*size,(i+1)*size)})); }catch(e){ banner('Could not send data to the large window: '+esc(e.message), true); }
-}
-const buf={};
-function onParentMsg(arg){
-  let m; try{ m=JSON.parse(arg.message); }catch(e){ return; }
-  const b=buf[m.id]=buf[m.id]||{c:[],k:0}; if(b.c[m.i]==null){ b.c[m.i]=m.s; b.k++; }
-  if(b.k===m.n){ const d=JSON.parse(b.c.join('')); delete buf[m.id]; RAW=d.RAW; SHEETS=d.SHEETS; setLive(`Live from workbook · updated ${d.stamp}`); banner(''); showData(); }
-}
-
-// ---------- boot ----------
-document.getElementById('boot')&&document.getElementById('boot').remove();
-if(EMBED){ RAW=EMBED; SHEETS=EMBED_SHEETS; showData(); }
-else if(window.Office){
-  window.__officeReady.then(info=>{
-    if(MODE==='dialog'){
-      setLive('Waiting for data…', true); $('refBtn').hidden=false; $('refBtn').onclick=()=>Office.context.ui.messageParent('refresh');
-      Office.context.ui.addHandlerAsync(Office.EventType.DialogParentMessageReceived, onParentMsg, ()=>Office.context.ui.messageParent('ready'));
-    } else if(info.host===Office.HostType.Excel){
-      $('refBtn').hidden=false; $('refBtn').onclick=loadFromExcel;
-      if(Office.context.requirements.isSetSupported('DialogApi','1.2')){ $('bigBtn').hidden=false; $('bigBtn').onclick=openBig; }
-      loadFromExcel();
-    } else {
-      banner('This dashboard reads your RFQ workbook directly. Open it from Excel: <b>Home → RFQ Dashboard</b>.');
+  function paintImages() {
+    document.querySelectorAll("[data-img]").forEach((el) => {
+      const u = IMG[el.dataset.img];
+      if (u) {
+        el.style.backgroundImage = `url('${u}')`;
+        el.classList.remove("none");
+      }
+    });
+  }
+  let tT = null;
+  function toast(m, k) {
+    const t = $("toast");
+    t.className = "toast" + (k ? " " + k : "");
+    t.textContent = m;
+    t.hidden = false;
+    clearTimeout(tT);
+    if (k) tT = setTimeout(() => t.hidden = true, 3500);
+  }
+  const SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+  const MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+  const isDark = () => {
+    const t = document.documentElement.getAttribute("data-theme");
+    return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  };
+  function paintTheme() {
+    $("themeBtn").innerHTML = isDark() ? SUN + "Light" : MOON + "Dark";
+  }
+  try {
+    const t = localStorage.getItem("nx-theme");
+    if (t) document.documentElement.setAttribute("data-theme", t);
+  } catch (e) {
+  }
+  $("themeBtn").onclick = () => {
+    const t = isDark() ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", t);
+    try {
+      localStorage.setItem("nx-theme", t);
+    } catch (e) {
+    }
+  };
+  paintTheme();
+  new MutationObserver(() => {
+    paintTheme();
+    render();
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    paintTheme();
+    render();
+  });
+  function setCust(on) {
+    document.body.classList.toggle("cust", on);
+    $("custBtn").setAttribute("aria-pressed", on);
+    $("custBtn").textContent = on ? "Customer view: on" : "Customer view";
+    try {
+      localStorage.setItem("nx-cust", on ? "1" : "");
+    } catch (e) {
+    }
+  }
+  $("custBtn").onclick = () => setCust(!document.body.classList.contains("cust"));
+  try {
+    if (localStorage.getItem("nx-cust")) setCust(true);
+  } catch (e) {
+  }
+  let deb = null;
+  const later = (fn, ms = 220) => {
+    clearTimeout(deb);
+    deb = setTimeout(fn, ms);
+  };
+  $("q").oninput = (e) => {
+    F.q = e.target.value;
+    later(render);
+  };
+  $("tq").oninput = (e) => {
+    TQ = e.target.value;
+    later(() => renderAll());
+  };
+  [["f-ps", "ps"], ["f-stage", "stage"], ["f-del", "del"], ["f-po", "po"]].forEach(([id, k]) => $(id).onchange = (e) => setF(k, e.target.value));
+  $("proj").querySelectorAll("button").forEach((b) => b.onclick = () => setF("proj", b.dataset.v));
+  $("clear").onclick = clearAll;
+  if (window.Chart) Chart.defaults.font.family = "Plus Jakarta Sans, system-ui, sans-serif";
+  else window.Chart = function() {
+    return { destroy() {
+    } };
+  };
+  function banner(m, err) {
+    const b = $("banner");
+    b.hidden = !m;
+    b.className = "banner" + (err ? " err" : "");
+    b.innerHTML = m || "";
+  }
+  function loadSheets(sheets, stamp, errs) {
+    const recs = [], e = errs || [];
+    for (const s of sheets) {
+      const res = NXP.parse(s.name, s.rows, s.hidden, s.comments);
+      if (res.error) e.push(esc(res.error));
+      else recs.push(...res.recs);
+    }
+    if (!recs.length) {
+      banner('No Earth Truss or Anchor rows found. The dashboard reads sheets whose name contains "Earth truss" or "Anchor", with a header row that has Part Number and Part Status.', true);
+      return false;
+    }
+    banner(e.length ? "Some sheets were skipped: " + e.join(" \xB7 ") : "", e.length > 0);
+    prep(recs);
+    $("upd").textContent = "Last Updated: " + stamp;
+    fillSelects();
+    started = true;
+    render();
+    return true;
+  }
+  let dlg = null, watching = false, busy = false, autoT = null, lastSheets = null;
+  let readErrs = [];
+  async function readSheet(name) {
+    return await Excel.run(async (ctx) => {
+      const s = ctx.workbook.worksheets.getItem(name);
+      window.__step = "reading used range (" + name + ")";
+      const u = s.getUsedRangeOrNullObject(true);
+      u.load("rowCount,rowIndex,columnCount,columnIndex");
+      await ctx.sync();
+      if (u.isNullObject) return null;
+      const n = u.rowIndex + u.rowCount, nc = Math.min(u.columnIndex + u.columnCount, 40);
+      window.__step = "reading cell values (" + name + ")";
+      const cols = new Array(nc).fill(null);
+      let rs = [];
+      for (let c = 0; c < nc; c++) {
+        const r = s.getRangeByIndexes(0, c, n, 1);
+        r.load("values");
+        rs.push(r);
+      }
+      try {
+        await ctx.sync();
+        rs.forEach((r, c) => cols[c] = r.values.map((x) => x[0]));
+      } catch (e) {
+        for (let c = 0; c < nc; c++) {
+          try {
+            const r = s.getRangeByIndexes(0, c, n, 1);
+            r.load("values");
+            await ctx.sync();
+            cols[c] = r.values.map((x) => x[0]);
+          } catch (e1) {
+            try {
+              const r = s.getRangeByIndexes(0, c, n, 1);
+              r.load("text");
+              await ctx.sync();
+              cols[c] = r.text.map((x) => x[0]);
+            } catch (e2) {
+              cols[c] = new Array(n).fill("");
+            }
+          }
+        }
+      }
+      const rows = [];
+      for (let i = 0; i < n; i++) {
+        const row = new Array(nc);
+        for (let c = 0; c < nc; c++) row[c] = cols[c][i];
+        rows.push(row);
+      }
+      window.__step = "reading hidden rows (" + name + ")";
+      let hidden = new Array(n).fill(false);
+      try {
+        const hr = [];
+        for (let i = 0; i < n; i++) {
+          const c = s.getRangeByIndexes(i, 0, 1, 1);
+          c.load("rowHidden");
+          hr.push(c);
+        }
+        await ctx.sync();
+        hidden = hr.map((c) => !!c.rowHidden);
+      } catch (e) {
+      }
+      window.__step = "reading comments (" + name + ")";
+      const comments = {};
+      try {
+        s.comments.load("items/content");
+        await ctx.sync();
+        const locs = s.comments.items.map((c) => c.getLocation().load("rowIndex"));
+        await ctx.sync();
+        s.comments.items.forEach((c, i) => {
+          const r = locs[i].rowIndex;
+          (comments[r] = comments[r] || []).push(c.content);
+        });
+      } catch (e) {
+      }
+      if (!watching) {
+        try {
+          s.onChanged.add(onSheetChange);
+          await ctx.sync();
+        } catch (e) {
+        }
+      }
+      return { name, rows, hidden, comments };
+    });
+  }
+  async function readWorkbook() {
+    window.__step = "reading sheet list";
+    const names = await Excel.run(async (ctx) => {
+      const w = ctx.workbook.worksheets;
+      w.load("items/name");
+      await ctx.sync();
+      return w.items.map((s) => s.name);
+    });
+    const src = names.filter((n) => NXP.projectOf(n));
+    readErrs = [];
+    if (!src.length) throw new Error('No sheet named like "Earth truss Parts" or "Anchor Parts" found. Sheets in this file: ' + names.join(", "));
+    const out = [];
+    for (const n of src) {
+      try {
+        const r = await readSheet(n);
+        if (r) out.push(r);
+      } catch (e) {
+        readErrs.push(n + ": " + (e.message || e) + " (step: " + window.__step + ")");
+      }
+    }
+    watching = true;
+    if (!out.length) throw new Error(readErrs.join(" \xB7 "));
+    return out;
+  }
+  async function loadImages(force) {
+    if (force) IMG = {};
+    for (const sh of lastSheets || []) {
+      const hi = NXP.findHeaderRow(sh.rows);
+      if (hi < 0) continue;
+      const I = NXP.mapHeaders(sh.rows[hi]);
+      if (I.img < 0) continue;
+      const recRows = ALL.filter((r) => r.sheet === sh.name).map((r) => r.row - 1);
+      const key = (i) => sh.name + "|" + (i + 1);
+      try {
+        await Excel.run(async (ctx) => {
+          const ws = ctx.workbook.worksheets.getItem(sh.name);
+          try {
+            ws.shapes.load("items/type,top,left,width,height");
+            const cells = recRows.map((i) => {
+              const c = ws.getRangeByIndexes(i, I.img, 1, 1);
+              c.load("top,left,width,height");
+              return c;
+            });
+            await ctx.sync();
+            const pend = [];
+            for (const shp of ws.shapes.items) {
+              if (String(shp.type).toLowerCase() !== "image") continue;
+              const cy = shp.top + shp.height / 2, cx = shp.left + shp.width / 2;
+              const k = cells.findIndex((c) => cy >= c.top && cy < c.top + c.height && cx >= c.left - 4 && cx <= c.left + c.width + 4);
+              if (k >= 0 && !IMG[key(recRows[k])] && !pend.some((p) => p.i === recRows[k])) pend.push({ i: recRows[k], r: shp.getAsImage(Excel.PictureFormat.png) });
+            }
+            if (pend.length) {
+              await ctx.sync();
+              pend.forEach((p) => {
+                if (p.r.value) IMG[key(p.i)] = "data:image/png;base64," + p.r.value;
+              });
+            }
+          } catch (e) {
+          }
+          const need = recRows.filter((i) => !IMG[key(i)]);
+          const vt = need.map((i) => {
+            const c = ws.getRangeByIndexes(i, I.img, 1, 1);
+            c.load("valueTypes");
+            return { i, c };
+          });
+          await ctx.sync();
+          const todo = vt.filter((x) => x.c.valueTypes && x.c.valueTypes[0][0] !== "Empty");
+          for (let b = 0; b < todo.length; b += 8) {
+            const part = todo.slice(b, b + 8).map((x) => ({ i: x.i, r: x.c.getImage() }));
+            try {
+              await ctx.sync();
+              part.forEach((p) => {
+                if (p.r.value) IMG[key(p.i)] = "data:image/png;base64," + p.r.value;
+              });
+            } catch (e) {
+            }
+            paintImages();
+          }
+        });
+      } catch (e) {
+      }
+    }
+    paintImages();
+    sendToDialog();
+    sendToTab();
+  }
+  function onSheetChange() {
+    if (!busy) {
+      clearTimeout(autoT);
+      autoT = setTimeout(() => load(false, true), 1500);
+    }
+    return Promise.resolve();
+  }
+  async function load(forceImages, quiet) {
+    busy = true;
+    try {
+      lastSheets = await readWorkbook();
+      window.__step = "building dashboard";
+      const ok = loadSheets(lastSheets, fmtStamp(/* @__PURE__ */ new Date()), readErrs.map(esc));
+      if (ok) {
+        window.__started = true;
+      }
+      window.__step = "loading part images";
+      sendToDialog();
+      sendToTab();
+      if (ok) {
+        if (quiet) toast("Data Updated Successfully", "ok");
+        loadImages(forceImages).catch(() => {
+        });
+      }
+      return ok;
+    } finally {
+      busy = false;
+    }
+  }
+  async function refreshData() {
+    const b = $("refBtn");
+    b.classList.add("spin");
+    b.disabled = true;
+    toast("Refreshing Data...");
+    try {
+      const ok = await load(true);
+      toast(ok ? "Data Updated Successfully" : "No data found", ok ? "ok" : "err");
+    } catch (e) {
+      toast("Refresh failed", "err");
+      banner("Refresh failed: " + esc(e.message || e) + ". Check that the Earth truss and Anchor sheets are in this workbook.", true);
+    }
+    b.classList.remove("spin");
+    b.disabled = false;
+  }
+  let tabWin = null;
+  function isWeb() {
+    try {
+      return Office.context.platform === Office.PlatformType.OfficeOnline;
+    } catch (e) {
+      return false;
+    }
+  }
+  let tabAsks = 0, tabSends = 0;
+  function sendToTab() {
+    if (!tabWin || !lastSheets) return;
+    try {
+      tabWin.postMessage({ nx: "data", sheets: lastSheets, img: IMG, stamp: $("upd").textContent }, "*");
+      tabSends++;
+    } catch (e) {
+      toast("Could not send data to the full screen tab: " + e.message, "err");
+    }
+  }
+  function openTab() {
+    let w = null;
+    try {
+      w = window.open(location.origin + location.pathname + "?mode=tab", "nxPartsFull");
+    } catch (e) {
+    }
+    if (!w) {
+      toast("The browser blocked the new tab. Allow pop-ups for this site, then press Open full screen again.", "err");
+      return;
+    }
+    tabWin = w;
+    setTimeout(sendToTab, 1200);
+  }
+  addEventListener("message", (e) => {
+    const d = e.data || {};
+    if (!d || typeof d !== "object" || !d.nx) return;
+    if (e.source !== tabWin && e.origin !== location.origin && e.origin !== "null") return;
+    if (d.nx === "ready") {
+      tabWin = e.source;
+      tabAsks++;
+      if (!lastSheets) return;
+      sendToTab();
+    } else if (d.nx === "refresh") {
+      refreshData();
     }
   });
-} else banner('Office could not load. Open this dashboard from Excel: <b>Home → RFQ Dashboard</b>.', true);
+  function openBig() {
+    Office.context.ui.displayDialogAsync(location.origin + location.pathname + "?mode=dialog", { height: 100, width: 100, displayInIframe: true }, (res) => {
+      if (res.status !== Office.AsyncResultStatus.Succeeded) {
+        toast("Could not open the large window: " + res.error.message, "err");
+        return;
+      }
+      dlg = res.value;
+      dlg.addEventHandler(Office.EventType.DialogMessageReceived, (m) => {
+        if (m.message === "ready") sendToDialog();
+        else if (m.message === "nols") sendToDialog("msg");
+        else if (m.message === "refresh") refreshData();
+      });
+      dlg.addEventHandler(Office.EventType.DialogEventReceived, () => {
+        dlg = null;
+      });
+    });
+  }
+  const LSK = "nx-payload";
+  function lsSet(obj) {
+    try {
+      localStorage.setItem(LSK, JSON.stringify(obj));
+      return true;
+    } catch (e) {
+      try {
+        localStorage.removeItem(LSK);
+      } catch (_) {
+      }
+      return false;
+    }
+  }
+  function lsGet() {
+    try {
+      const s = localStorage.getItem(LSK);
+      return s ? JSON.parse(s) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+  function sendChunks(obj) {
+    const s = JSON.stringify(obj), size = 12e3, n = Math.ceil(s.length / size), id = Date.now() + Math.random();
+    for (let i = 0; i < n; i++) {
+      try {
+        dlg.messageChild(JSON.stringify({ t: "c", id, i, n, s: s.slice(i * size, (i + 1) * size) }));
+      } catch (e) {
+      }
+    }
+  }
+  let lastVer = 0;
+  function sendToDialog(mode) {
+    if (!lastSheets) return;
+    const stamp = $("upd").textContent, v = Date.now();
+    lastVer = v;
+    const okLS = lsSet({ v, sheets: lastSheets, img: IMG, stamp }) || lsSet({ v, sheets: lastSheets, img: {}, stamp, noimg: true });
+    if (!dlg) return;
+    if (okLS && mode !== "msg") {
+      try {
+        dlg.messageChild(JSON.stringify({ t: "ls", v }));
+      } catch (e) {
+      }
+      return;
+    }
+    sendChunks({ t: "data", sheets: lastSheets, stamp });
+    Object.keys(IMG).forEach((k) => sendChunks({ t: "img", k, u: IMG[k] }));
+  }
+  const buf = {};
+  let gotVer = 0, readyTimer = null;
+  function applyPayload(d) {
+    if (d.img) IMG = Object.assign({}, IMG, d.img);
+    loadSheets(d.sheets, String(d.stamp || "").replace("Last Updated: ", ""));
+    paintImages();
+    clearInterval(readyTimer);
+    readyTimer = null;
+    const rb = $("refBtn");
+    rb.classList.remove("spin");
+    rb.disabled = false;
+    $("toast").hidden = true;
+  }
+  function readLS(v) {
+    const d = lsGet();
+    if (d && d.sheets && (!v || d.v >= v) && d.v !== gotVer) {
+      gotVer = d.v;
+      applyPayload(d);
+      return true;
+    }
+    return !!(d && d.v === gotVer && gotVer);
+  }
+  function onParentMsg(arg) {
+    let m;
+    try {
+      m = JSON.parse(arg.message);
+    } catch (e) {
+      return;
+    }
+    if (m.t === "ls") {
+      if (!readLS(m.v)) Office.context.ui.messageParent("nols");
+      return;
+    }
+    if (m.t !== "c") return;
+    const b = buf[m.id] = buf[m.id] || { c: [], k: 0 };
+    if (b.c[m.i] == null) {
+      b.c[m.i] = m.s;
+      b.k++;
+    }
+    if (b.k === m.n) {
+      const d = JSON.parse(b.c.join(""));
+      delete buf[m.id];
+      if (d.t === "data") applyPayload({ sheets: d.sheets, stamp: d.stamp });
+      else if (d.t === "img") {
+        IMG[d.k] = d.u;
+        paintImages();
+      }
+    }
+  }
+  __unboot();
+  window.__step = "waiting for Excel";
+  window.__officeReady.then((info) => {
+    if (MODE === "tab") {
+      window.__started = true;
+      toast("Waiting for data from Excel\u2026");
+      let got = 0, pings = 0;
+      addEventListener("message", (e) => {
+        const d = e.data || {};
+        if (!d || typeof d !== "object") return;
+        if (e.source !== window.opener && e.origin !== location.origin) return;
+        if (d.nx === "data") {
+          got++;
+          IMG = d.img || {};
+          loadSheets(d.sheets, String(d.stamp || "").replace("Last Updated: ", ""));
+          paintImages();
+          $("toast").hidden = true;
+          const rb = $("refBtn");
+          rb.classList.remove("spin");
+          rb.disabled = false;
+        }
+      });
+      const ping = () => {
+        try {
+          if (window.opener) {
+            window.opener.postMessage({ nx: "ready" }, "*");
+            pings++;
+          }
+        } catch (e) {
+        }
+      };
+      ping();
+      let n = 0;
+      const iv = setInterval(() => {
+        if (started || ++n > 16) {
+          clearInterval(iv);
+          if (!started) banner(window.opener ? `This tab did not receive data from Excel. Keep the NX Parts Status panel open in Excel (wait until it shows the dashboard) and press Open full screen again. [diag: origin ${location.origin}, requests sent ${pings}, replies ${got}]` : "Open this view from Excel: Home \u2192 NX Parts Status \u2192 Open full screen. [diag: no link to the Excel panel]", true);
+        } else ping();
+      }, 1500);
+      $("refBtn").onclick = () => {
+        const rb = $("refBtn");
+        rb.classList.add("spin");
+        rb.disabled = true;
+        toast("Refreshing Data...");
+        try {
+          window.opener.postMessage({ nx: "refresh" }, "*");
+        } catch (e) {
+          toast("Refresh from the Excel panel", "err");
+        }
+      };
+      return;
+    }
+    if (MODE === "dialog") {
+      window.__started = true;
+      toast("Loading data\u2026");
+      $("refBtn").onclick = () => {
+        const rb = $("refBtn");
+        rb.classList.add("spin");
+        rb.disabled = true;
+        toast("Refreshing Data...");
+        Office.context.ui.messageParent("refresh");
+      };
+      addEventListener("storage", (e) => {
+        if (e.key === LSK) readLS();
+      });
+      readLS();
+      const ping = () => {
+        try {
+          Office.context.ui.messageParent("ready");
+        } catch (e) {
+        }
+      };
+      Office.context.ui.addHandlerAsync(Office.EventType.DialogParentMessageReceived, onParentMsg, () => ping());
+      let tries = 0;
+      readyTimer = setInterval(() => {
+        if (++tries > 20) {
+          clearInterval(readyTimer);
+          if (!gotVer && !started) banner("The full screen window did not receive data from Excel. Close it and use the side panel, or press Open full screen again.", true);
+          return;
+        }
+        readLS();
+        ping();
+      }, 2e3);
+    } else if (info && info.host === Office.HostType.Excel) {
+      $("refBtn").onclick = refreshData;
+      const web = isWeb(), canBig = Office.context.requirements.isSetSupported("DialogApi", "1.2");
+      if (web) {
+        $("bigBtn").hidden = false;
+        $("bigBtn").textContent = "Open full screen (new tab)";
+        $("bigBtn").onclick = openTab;
+      } else if (canBig) {
+        $("bigBtn").hidden = false;
+        $("bigBtn").onclick = openBig;
+      }
+      toast("Loading data\u2026");
+      load(true).then((ok) => {
+        if (ok) {
+          $("toast").hidden = true;
+          if (!web && canBig && !dlg) openBig();
+        } else window.__started = true;
+      }).catch((e) => {
+        window.__started = true;
+        toast("Could not read the workbook", "err");
+        banner("Could not read the workbook: " + esc(e.message || e) + " (step: " + window.__step + ")", true);
+      });
+    } else {
+      window.__started = true;
+      $("refBtn").disabled = true;
+      banner("This dashboard reads the NX parts status workbook directly. Open it from Excel: <b>Home \u2192 NX Parts Status</b>.");
+    }
+  });
+  window.__nx = { closeDrawer: () => closeDrawer(), charts };
+})();
 </script>
 
 </html>
