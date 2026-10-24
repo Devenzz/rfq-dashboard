@@ -14,8 +14,15 @@ const RFQP = (() => {
       return d.toISOString().slice(0, 10);
     }
     if (v instanceof Date && !isNaN(v)) return v.toISOString().slice(0, 10);
+    if (typeof v === 'string') {
+      const m = v.trim().match(/^(\d{1,2})[-./](\d{1,2})[-./](\d{4})$/);
+      if (m) { const y = +m[3], mo = +m[2], d = +m[1]; const dt = new Date(Date.UTC(y, mo - 1, d));
+        if (dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d) return dt.toISOString().slice(0, 10); }
+    }
     return null;
   };
+  const isNum = v => { if (typeof v === 'number') return isFinite(v); const s = txt(v).replace(/₹/g, '').replace(/,/g, '').trim(); return s !== '' && !isNaN(+s); };
+  const prosp = v => { const s = txt(v).toLowerCase(); return s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Not set'; };
   const PROC = [['investment', 'Investment Casting'], ['steel casting', 'Steel Casting'], ['alumin', 'Aluminium Casting'], ['allumin', 'Aluminium Casting'],
     ['raw material', 'Raw Material'], ['casting', 'Casting'], ['forging', 'Forging'], ['assembly', 'Assembly'], ['fabrication', 'Fabrication'],
     ['welding', 'Welding'], ['brought', 'Bought Out'], ['b.o', 'Bought Out']];
@@ -24,7 +31,7 @@ const RFQP = (() => {
     ['kamlesh', 'Kamlesh'], ['manish', 'Manish'], ['manoj', 'Manoj']];
   const proc = v => { const s = txt(v).toLowerCase(); for (const [k, n] of PROC) if (s.includes(k)) return n; return 'Others'; };
   const owners = v => { const s = txt(v).toLowerCase(); const o = []; for (const [k, n] of OWN) if (s.includes(k) && !o.includes(n)) o.push(n); return o.length ? o : ['Unassigned']; };
-  const status = v => { const s = txt(v).toLowerCase(); if (s === 'd' || s.includes('regret')) return 'Regret'; if (s.includes('hold')) return 'Hold'; if (s.includes('close') || s.includes('won')) return 'Closed'; return 'Open'; };
+  const status = v => { const s = txt(v).toLowerCase(); if (s === 'd' || s.includes('regret')) return 'Regret'; if (s.includes('hold')) return 'Hold'; if (s.includes('close') || s.includes('won')) return 'Won'; return 'Open'; };
   const grade = v => { const s = txt(v).toUpperCase(); return s.includes('ADI') ? 'ADI' : s.includes('SG') ? 'SG' : s.includes('CI') ? 'CI' : ''; };
 
   // header keys -> list of accepted normalized header names (first match wins)
@@ -32,7 +39,7 @@ const RFQP = (() => {
     st: ['status'], cat: ['catagory', 'category'], rt: ['rfq10rfq20'], ed: ['exportdomestic'], c: ['customername'], no: ['rfqno'],
     ton: ['ton'], d: ['rfqreceiptdate'], t: ['quotationtargatedate', 'quotationtargetdate'], s: ['quotationsentdate'], ow: ['owner'],
     m: ['matrial', 'material'], pc: ['process'], pt: ['noofparts'], pri: ['priority'], rm: ['remarks'], to: ['expectedyearturnover'],
-    g: ['castinggrade'], al: ['checklist9targetdatealert'], loc: ['countrystate', 'country'], cv: ['convertedturnover']
+    g: ['castinggrade'], al: ['checklist9targetdatealert'], loc: ['countrystate', 'country'], cv: ['convertedturnover'], pro: ['prospectiveinquiry', 'prospective']
   };
   function mapHeaders(h) {
     const n = h.map(norm), idx = {};
@@ -77,7 +84,7 @@ const RFQP = (() => {
       const pr = txt(g(r, 'pri')), prT = pr.charAt(0).toUpperCase() + pr.slice(1).toLowerCase();
       const cat = txt(g(r, 'cat')).toUpperCase();
       recs.push({
-        no: txt(g(r, 'no')).slice(0, 40), d, t: ser(g(r, 't')), s: ser(sr), p: typeof sr === 'string' && sr.trim().toLowerCase() === 'pending',
+        no: txt(g(r, 'no')).slice(0, 40), d, t: ser(g(r, 't')), s: ser(sr), p: typeof sr === 'string' && sr.toLowerCase().includes('pending'),
         st: status(g(r, 'st')), cat: ['A', 'B', 'C', 'D', 'ND'].includes(cat) ? cat : 'NA',
         rt: rt0.includes('2.0') ? 'RFQ 2.0' : (rt0.startsWith('RFQ 1') ? 'RFQ 1.0' : 'NA'),
         ed: ['Export', 'Domestic'].includes(edT) ? edT : 'NA', c: txt(g(r, 'c')) || 'Unknown', ow: owners(g(r, 'ow')), pc: proc(g(r, 'pc')),
@@ -86,7 +93,12 @@ const RFQP = (() => {
       });
       const rec = recs[recs.length - 1], pl = place(g(r, 'loc'), rec.ed);
       rec.co = pl.co; rec.sta = pl.sta; rec.loc = txt(g(r, 'loc'));
-      rec.cv = I.cv >= 0 ? Math.round(num(g(r, 'cv')) * 100) / 100 : (rec.st === 'Closed' ? rec.to : 0);
+      // turnover rule: Won rows use Converted Turnover, every other row uses Expected Year Turnover
+      rec.exp = rec.to; rec.pro = I.pro >= 0 ? prosp(g(r, 'pro')) : 'Not set';
+      const cvRaw = I.cv >= 0 ? g(r, 'cv') : '';
+      rec.cvErr = I.cv >= 0 && txt(cvRaw) !== '' && !isNum(cvRaw);
+      rec.cv = I.cv >= 0 ? (rec.cvErr ? 0 : Math.round(num(cvRaw) * 100) / 100) : (rec.st === 'Won' ? rec.exp : 0);
+      if (rec.st === 'Won') rec.to = rec.cv;
     }
     return { recs, cols: I };
   }

@@ -57,12 +57,16 @@ h1{font:700 30px/1.05 var(--f-num);letter-spacing:.01em;margin:6px 0 0;text-wrap
 .chip{font:500 11.5px var(--f-ui);background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:2px 10px;border:0;cursor:pointer}
 .chip:empty{display:none}
 main.wrap{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px;padding-top:18px}
-.kpis{grid-column:1/-1;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.kpis{grid-column:1/-1;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .kpi{background:var(--surface);padding:12px 14px 10px;display:flex;flex-direction:column;gap:2px;min-width:0}
 .kpi .k{font:500 10.5px/1.2 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .kpi .v{font:600 30px/1.05 var(--f-num);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .kpi .s{font-size:11.5px;color:var(--ink-2)}
-.kpi.hero{background:var(--accent-soft)}
+.kpi.hero{background:var(--accent-soft);grid-column:span 2}
+.kpi.won{background:var(--good-bg)}.kpi.won .v{color:var(--good)}
+.chip.fixedchip{cursor:default;background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line)}.chip.warnchip{background:var(--warn-bg);color:var(--warn);border-color:transparent}
+.seg.pm button[data-v="pend"][aria-pressed="true"]{background:var(--warn);color:#fff}
+.fld input:disabled{opacity:.45;cursor:not-allowed}
 .kpi.hero .v{color:var(--accent)}
 .kpi.warn .v{color:var(--warn)}
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px 16px;min-width:0;display:flex;flex-direction:column;gap:10px}
@@ -100,7 +104,7 @@ td.bar{background-image:linear-gradient(90deg,var(--accent-soft),var(--accent-so
 .search{font:13px var(--f-ui);height:30px;padding:0 10px;border:1px solid var(--line-2);border-radius:6px;background:var(--surface-2);color:var(--ink);width:240px;max-width:100%}
 .empty{padding:24px;text-align:center;color:var(--muted)}
 .mono{font-family:var(--f-mono);font-size:11.5px}
-@media (max-width:1100px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.c8,.c7,.c6,.c5,.c4{grid-column:span 12}}
+@media (max-width:1100px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.c8,.c7,.c6,.c5,.c4{grid-column:span 12}}
 @media (max-width:560px){.filters{position:static}.eyebrow{white-space:normal}.wrap{padding-inline:16px}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.kpi .v{font-size:26px}.kpi.hero .v{font-size:30px}h1{font-size:24px}.band .meta{text-align:left}.fld{flex:1 1 44%}.fld select,.fld input{width:100%}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
@@ -138,6 +142,7 @@ td.bar{background-image:linear-gradient(90deg,var(--accent-soft),var(--accent-so
 
 <section class="filters" aria-label="Filters"><div class="wrap">
   <div class="fld"><label>Year sheet</label><div class="seg" id="ds"></div></div>
+  <div class="fld"><label>Quotation</label><div class="seg pm" id="pm"><button type="button" data-v="sub" aria-pressed="true">Submitted</button><button type="button" data-v="pend" aria-pressed="false">Pending</button><button type="button" data-v="both" aria-pressed="false">Both</button></div></div>
   <div class="fld"><label for="from">Date from</label><input type="date" id="from"></div>
   <div class="fld"><label for="to">Date to</label><input type="date" id="to"></div>
   <div class="fld"><label for="f-ed">Type</label><select id="f-ed"></select></div>
@@ -147,6 +152,8 @@ td.bar{background-image:linear-gradient(90deg,var(--accent-soft),var(--accent-so
   <div class="fld"><label for="f-ow">Owner</label><select id="f-ow"></select></div>
   <div class="fld"><label for="f-pri">Priority</label><select id="f-pri"></select></div>
   <div class="fld"><label for="f-co">Country</label><select id="f-co"></select></div>
+  <div class="fld"><label for="f-status">Status</label><select id="f-status"></select></div>
+  <div class="fld"><label for="f-pro">Prospective inquiry</label><select id="f-pro"></select></div>
   <button class="btn" id="reset" type="button">Reset filters</button>
   <div class="chips" id="chips"></div>
 </div></section>
@@ -235,7 +242,7 @@ const CATS = ['A','B','C','D','ND','NA'];
 const PRIS = ['High','Medium','Low','NA'];
 const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-const st = {ds:'',from:'',to:'',ed:'All',rt:'All',pc:'All',c:'All',ow:'All',pri:'All',co:'All'};
+const st = {ds:'',from:'',to:'',ed:'All',rt:'All',pc:'All',c:'All',ow:'All',pri:'All',co:'All',status:'All',pro:'All',pm:'sub'};
 const sortC = {k:'n',dir:-1};
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
@@ -261,6 +268,8 @@ function setupSelects(){
   opt('f-c',[...new Set(rows.map(r=>r.c))].sort((a,b)=>a.localeCompare(b)),'c');
   opt('f-ow',[...new Set(rows.flatMap(r=>r.ow))].sort(),'ow');
   opt('f-pri',['High','Medium','Low'],'pri');
+  const SORD=['Open','Won','Regret','Hold']; opt('f-status',SORD.filter(s=>rows.some(r=>r.st===s)),'status');
+  const PORD=['Yes','No','Maybe']; const pv=[...new Set(rows.map(r=>r.pro))]; opt('f-pro',[...PORD.filter(x=>pv.includes(x)),...pv.filter(x=>!PORD.includes(x)&&x!=='Not set').sort(),...(pv.includes('Not set')?['Not set']:[])],'pro');
   opt('f-co',[...new Set(rows.map(r=>r.co))].sort((a,b)=>a==='Not specified'?1:b==='Not specified'?-1:a.localeCompare(b)),'co');
 }
 function setDataset(ds, keepDates){
@@ -273,9 +282,12 @@ function setDataset(ds, keepDates){
   setupSelects();
 }
 
+function pmEff(){ return (st.status==='Regret' && st.pm==='sub') ? 'both' : st.pm; }
 function filtered(){
+  const noDate = pmEff()==='pend';
   return rowsFor(st.ds).filter(r =>
-    (!st.from || r.d>=st.from) && (!st.to || r.d<=st.to) &&
+    (noDate || !st.from || r.d>=st.from) && (noDate || !st.to || r.d<=st.to) &&
+    (st.status==='All'||r.st===st.status) && (st.pro==='All'||r.pro===st.pro) &&
     (st.ed==='All'||r.ed===st.ed) && (st.rt==='All'||r.rt===st.rt) &&
     (st.pc==='All'||r.pc===st.pc) && (st.c==='All'||r.c===st.c) &&
     (st.ow==='All'||r.ow.includes(st.ow)) && (st.pri==='All'||r.pri===st.pri) && (st.co==='All'||r.co===st.co));
@@ -319,34 +331,43 @@ function bar(id, labels, datasets, o={}){
       onHover:o.click?(e,els)=>{ e.native.target.style.cursor=els.length?'pointer':'default'; }:undefined}});
 }
 
-function setF(k,v){ st[k] = st[k]===v?'All':v; const el=$({pc:'f-pc',c:'f-c',ow:'f-ow',ed:'f-ed',pri:'f-pri',rt:'f-rt',co:'f-co'}[k]); if(el) el.value=st[k]; render(); }
+function setF(k,v){ st[k] = st[k]===v?'All':v; const el=$({pc:'f-pc',c:'f-c',ow:'f-ow',ed:'f-ed',pri:'f-pri',rt:'f-rt',co:'f-co',status:'f-status',pro:'f-pro'}[k]); if(el) el.value=st[k]; render(); }
 
 function render(){
-  const all = filtered();
-  const sub = all.filter(r=>!r.p), pend = all.filter(r=>r.p);
+  const PM = pmEff();
+  const all0 = filtered();
+  const pend = all0.filter(r=>r.p);
+  const sub = PM==='sub' ? all0.filter(r=>!r.p) : PM==='pend' ? pend : all0;
+  const all = PM==='pend' ? pend : all0;
+  document.querySelectorAll('#pm button').forEach(b=>b.setAttribute('aria-pressed', b.dataset.v===PM));
+  $('from').disabled = $('to').disabled = PM==='pend';
   const A = agg(sub);
   const custs = new Set(sub.map(r=>r.c)).size;
   const pendOver = pend.filter(r=>r.t && todayStr>r.t).length;
 
   // header
   const fmtD = s => { if(!s) return '—'; const [y,m,d]=s.split('-'); return `${+d} ${MON[m-1]} ${y}`; };
-  const ks=KEYS(); $('ttl').textContent = 'Summary of Submitted RFQ ' + (st.ds==='all'?ks[0]+'–'+ks[ks.length-1]:st.ds);
+  const ks=KEYS(); $('ttl').textContent = (PM==='pend'?'Summary of Pending RFQ ':PM==='both'?'Summary of Submitted + Pending RFQ ':'Summary of Submitted RFQ ') + (st.ds==='all'?ks[0]+'–'+ks[ks.length-1]:st.ds);
   $('meta').innerHTML = `${fmtD(st.from)} → ${fmtD(st.to)}<br>Sheet: ${esc(st.ds==='all'?ks.map(k=>SHEETS[k]||k).join(' + '):(SHEETS[st.ds]||st.ds))} · alerts as of ${fmtD(todayStr)}`;
-  const chipMap = {ed:'Type',rt:'RFQ',pc:'Process',c:'Customer',ow:'Owner',pri:'Priority',co:'Country'};
+  const chipMap = {ed:'Type',rt:'RFQ',pc:'Process',c:'Customer',ow:'Owner',pri:'Priority',co:'Country',status:'Status',pro:'Prospective'};
   $('chips').innerHTML = Object.keys(chipMap).filter(k=>st[k]!=='All').map(k=>`<button class="chip" data-k="${k}" type="button">${chipMap[k]}: ${esc(st[k])} ✕</button>`).join('');
-  $('chips').querySelectorAll('.chip').forEach(b=>b.onclick=()=>setF(b.dataset.k,st[b.dataset.k]));
+  const PML={sub:'Submitted only',pend:'Only pending',both:'Submitted + pending'};
+  $('chips').insertAdjacentHTML('afterbegin', `<span class="chip fixedchip">Quotation: ${PML[PM]}</span>`+(st.status==='Regret'&&st.pm==='sub'?'<span class="chip fixedchip warnchip">Regret rows are counted from pending quotations</span>':''));
+  $('chips').querySelectorAll('.chip[data-k]').forEach(b=>b.onclick=()=>setF(b.dataset.k,st[b.dataset.k]));
 
   // KPIs
   const k = (label,val,sub,cls='')=>`<div class="kpi ${cls}"><div class="k">${label}</div><div class="v" title="${esc(val)}">${val}</div><div class="s">${sub||'&nbsp;'}</div></div>`;
+  const wonRows=sub.filter(r=>r.st==='Won'), wonCv=sum(wonRows,x=>x.cv), wonNoVal=wonRows.filter(r=>!r.cv).length, cvErrN=sub.filter(r=>r.cvErr).length;
   const r1=sub.filter(r=>r.rt==='RFQ 1.0').length, r2=sub.filter(r=>r.rt==='RFQ 2.0').length;
   const ex=sub.filter(r=>r.ed==='Export').length, dm=sub.filter(r=>r.ed==='Domestic').length;
   $('kpis').innerHTML =
-    k('Total RFQs submitted',N0(A.n),`${N0(all.length)} received in period`)+
-    k('RFQ 1.0',N0(r1),P(r1/A.n)+' of submitted')+
-    k('RFQ 2.0',N0(r2),P(r2/A.n)+' of submitted')+
+    k(PM==='sub'?'Total RFQs submitted':PM==='pend'?'Pending RFQs':'Total RFQs (submitted + pending)',N0(A.n),PM==='pend'?'quotation not sent yet':`${N0(all0.length)} received in period`)+
+    k('RFQ 1.0',N0(r1),P(r1/A.n)+(PM==='sub'?' of submitted':' of RFQs'))+
+    k('RFQ 2.0',N0(r2),P(r2/A.n)+(PM==='sub'?' of submitted':' of RFQs'))+
     k('Total TON',A.ton.toLocaleString('en-IN',{maximumFractionDigits:1}),'annual tonnage quoted')+
     `<div class="kpi hero"><div class="k">Total expected year turnover</div><div class="v" title="${INR(A.to)}">${INRs(A.to)}</div><div class="s">${INR(A.to)}</div></div>`+
-    k('Total customers',N0(custs),'with a submitted RFQ')+
+    `<div class="kpi won"><div class="k">Converted turnover (Won)</div><div class="v" title="${INR(wonCv)}">${INRs(wonCv)}</div><div class="s">${N0(wonRows.length)} won RFQs${wonNoVal?` · ${wonNoVal} without value`:''}${cvErrN?` · ${cvErrN} error cells = 0`:''}</div></div>`+
+    k('Total customers',N0(custs),PM==='pend'?'with a pending RFQ':PM==='both'?'with an RFQ in this view':'with a submitted RFQ')+
     k('Total parts',N0(A.pt),'part numbers quoted')+
     k('Export RFQs',N0(ex),P(ex/A.n))+
     k('Domestic RFQs',N0(dm),P(dm/A.n))+
@@ -381,7 +402,7 @@ function render(){
   table('alert',[{k:'name',l:'Alert',f:(v,r)=>`<span class="pill ${acls[r.key]}"><i></i>${v}</span>`},{k:'n',l:'RFQs',f:N0},{k:'pc',l:'%',f:P},{k:'ton',l:'TON',f:N2}],
     ['Delay','Before','On target','No target'].filter(x=>al[x]||x!=='No target').map(x=>({key:x,name:aname[x],n:al[x],pc:al[x]/(A.n||1),ton:alT[x]||0})));
   // status
-  const SS=[['Open','Active / Open','p-info'],['Regret','Regret (D)','p-bad'],['Hold','Hold / On hold','p-warn'],['Closed','Closed / Won','p-good']];
+  const SS=[['Open','Active / Open','p-info'],['Regret','Regret (D)','p-bad'],['Hold','Hold / On hold','p-warn'],['Won','Won / Order received','p-good']];
   table('status',[{k:'name',l:'Status',f:(v,r)=>`<span class="pill ${r.cls}"><i></i>${v}</span>`},{k:'n',l:'RFQs',f:N0},{k:'pc',l:'%',f:P},{k:'ton',l:'TON',f:N2},{k:'pt',l:'Parts',f:N0}],
     SS.map(([key,name,cls])=>{ const L=sub.filter(r=>r.st===key); return {name,cls,n:L.length,pc:L.length/(A.n||1),ton:sum(L,x=>x.ton),pt:sum(L,x=>x.pt)}; }));
   document.querySelector('#alert').insertAdjacentHTML('beforeend', pDelay?`<p class="note" style="padding:8px 10px">Plus <b>${pDelay}</b> pending quotation${pDelay>1?'s':''} already past target date.</p>`:'');
@@ -561,14 +582,14 @@ function renderCust(sub){
   if(sub) lastSub=sub; sub=lastSub;
   const q=$('cSearch').value.trim().toLowerCase();
   const by={}; sub.forEach(r=>{ (by[r.c]=by[r.c]||[]).push(r); });
-  let rows=Object.entries(by).map(([name,L])=>{ const a=agg(L); return {name,...a,conv:sum(L,x=>x.cv),share:0}; });
+  let rows=Object.entries(by).map(([name,L])=>{ const a=agg(L); return {name,...a,conv:sum(L.filter(r=>r.st==='Won'),x=>x.cv),share:0}; });
   const T=agg(sub); rows.forEach(r=>r.share=T.to?r.to/T.to:0);
   if(q) rows=rows.filter(r=>r.name.toLowerCase().includes(q));
   const k=sortC.k; rows.sort((a,b)=> k==='name'? sortC.dir*a.name.localeCompare(b.name) : sortC.dir*((a[k]||0)-(b[k]||0)));
   table('tCust',[{k:'name',l:'Customer'},{k:'n',l:'RFQs',f:N0,bar:1},{k:'ton',l:'TON',f:N2},{k:'pt',l:'Parts',f:N0},{k:'hi',l:'High prio',f:N0},{k:'avg',l:'Avg TON',f:N2},
     {k:'to',l:'Exp. year turnover',f:INR},{k:'share',l:'Turnover %',f:P},{k:'conv',l:'Converted turnover',f:v=>v?INR(v):'<span style="color:var(--muted)">—</span>'}], rows,
     {sortable:true,sort:sortC,onSort:kk=>{ sortC.dir = sortC.k===kk?-sortC.dir:(kk==='name'?1:-1); sortC.k=kk; renderCust(); },
-     click:v=>setF('c',v), total:q?null:{name:`Total · ${rows.length} customers`,...T,share:T.to?1:0,conv:sum(sub,x=>x.cv)}});
+     click:v=>setF('c',v), total:q?null:{name:`Total · ${rows.length} customers`,...T,share:T.to?1:0,conv:sum(sub.filter(r=>r.st==='Won'),x=>x.cv)}});
 }
 function renderReg(all){
   if(all) lastAll=all; all=lastAll;
@@ -589,8 +610,9 @@ function renderReg(all){
 // wiring
 $('from').onchange=e=>{ st.from=e.target.value; render(); };
 $('to').onchange=e=>{ st.to=e.target.value; render(); };
-[['f-ed','ed'],['f-rt','rt'],['f-pc','pc'],['f-c','c'],['f-ow','ow'],['f-pri','pri'],['f-co','co']].forEach(([id,k])=>$(id).onchange=e=>{ st[k]=e.target.value; render(); });
-$('reset').onclick=()=>{ Object.assign(st,{ed:'All',rt:'All',pc:'All',c:'All',ow:'All',pri:'All',co:'All'}); setDataset(st.ds); render(); };
+[['f-ed','ed'],['f-rt','rt'],['f-pc','pc'],['f-c','c'],['f-ow','ow'],['f-pri','pri'],['f-co','co'],['f-status','status'],['f-pro','pro']].forEach(([id,k])=>$(id).onchange=e=>{ st[k]=e.target.value; render(); });
+document.querySelectorAll('#pm button').forEach(b=>b.onclick=()=>{ st.pm=b.dataset.v; if(st.status==='Regret'&&st.pm==='sub') st.status='All', $('f-status').value='All'; render(); });
+$('reset').onclick=()=>{ Object.assign(st,{ed:'All',rt:'All',pc:'All',c:'All',ow:'All',pri:'All',co:'All',status:'All',pro:'All',pm:'sub'}); setDataset(st.ds); render(); };
 $('cSearch').oninput=()=>renderCust();
 $('rSearch').oninput=()=>renderReg();
 const rerender=()=>{ if(started) render(); };
