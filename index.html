@@ -127,7 +127,7 @@ button.kpi{cursor:pointer}button.kpi:hover{border-color:var(--accent)}
 .kpi .s{font-size:12px;color:var(--ink-2)}
 .kpi.hero{background:var(--band);border-color:var(--band);color:var(--band-ink)}
 .kpi.hero .k,.kpi.hero .s{color:var(--band-ink);opacity:.78}
-.pipe{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.pipe{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .pipe button{all:unset;cursor:pointer;padding:12px 14px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:4px;position:relative;background:var(--surface)}
 .pipe button:last-child{border-right:0}
 .pipe button:hover{background:var(--surface-2)}
@@ -240,8 +240,8 @@ body.cust .internal{display:none!important}
     <div class="tbl scroll" id="tAll" style="max-height:680px"></div>
     <p class="note">Every row in the sheet counts as one sample lot. A part number can appear more than once (new revision or new sample lot). Click a row for full details and the part's history.</p></section>
 
-  <section class="panel c12" id="hidPanel"><details class="hid"><summary id="hidSum">Hidden rows in the sheet</summary>
-    <p class="note" style="margin:8px 0">These rows are hidden in Excel and are not counted anywhere above.</p>
+  <section class="panel c12" id="hidPanel"><details class="hid"><summary id="hidSum">Cancelled / discontinued</summary>
+    <p class="note" style="margin:8px 0">Rows where Part Status is Design Discontinued or Drawing Revised, or Sample Approval says Requirement Cancelled or Design Discontinued. They are kept out of every count above.</p>
     <div class="tbl scroll" id="tHid"></div></details></section>
 </main>
 
@@ -302,7 +302,7 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
     "Approved for production": { c: "--g4", d: "PPAP approved" },
     "Revised / Discontinued": { c: "--g5", d: "Drawing revised or design discontinued" }
   };
-  const PIPE = ["Development", "Sample", "PPAP", "Approved for production", "Revised / Discontinued"];
+  const PIPE = ["Development", "Sample", "PPAP", "Approved for production"];
   const DELS = ["Dispatched", "Ready for dispatch", "Hold", "Regular production", "Not dispatched"];
   const DEL_T = { "Dispatched": "t-good", "Ready for dispatch": "t-info", "Hold": "t-warn", "Regular production": "t-good", "Not dispatched": "t-neu" };
   const PS_T = (ps) => ps === "PPAP Approved" ? "t-good" : ps === "Sample Rejected" ? "t-bad" : ps === "Design Discontinued" || ps === "Drawing Revised" ? "t-neu" : /PPAP/.test(ps) ? "t-warn" : /Sample/.test(ps) || ps === "Project PO Pending" ? "t-info" : "t-neu";
@@ -316,8 +316,8 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
       r.s = (r.pn + " " + r.pd + " " + r.po + " " + r.track + " " + r.agent + " " + r.recent + " " + r.ps + " " + r.sa + " " + r.arena + " " + r.note).toLowerCase();
     });
     ALL = recs;
-    DATA = recs.filter((r) => !r.hidden);
-    HID = recs.filter((r) => r.hidden);
+    DATA = recs.filter((r) => !r.inactive);
+    HID = recs.filter((r) => r.inactive);
   }
   function filtered(skip) {
     const q = F.q.trim().toLowerCase();
@@ -435,7 +435,7 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
     const overdue = cnt((r) => r.ready && r.ready < todayStr && r.del === "Not dispatched" && r.stage !== "Revised / Discontinued");
     const appr = cnt((r) => r.stage === "Approved for production"), ppap = cnt((r) => r.stage === "PPAP"), samp = cnt((r) => r.stage === "Sample" || r.stage === "Development"), disc = cnt((r) => r.stage === "Revised / Discontinued");
     const k = (lab, val, sub, c, act, cls = "") => `<${act ? 'button type="button"' : "div"} class="kpi ${cls}" ${act ? `data-act="${act}" aria-pressed="${act === "del:" + F.del || act === "stage:" + F.stage || act === "ps:" + F.ps}"` : ""} style="${c ? `--c:var(${c})` : ""}"><div class="k">${c ? "<i></i>" : ""}${lab}</div><div class="v">${N0(val)}</div><div class="s">${sub || "&nbsp;"}</div></${act ? "button" : "div"}>`;
-    $("kpis").innerHTML = k("Total sample lots", n, `${N0(uniq)} unique part numbers \xB7 ${N0(HID.length)} hidden rows not counted`, "", "", "hero") + k("Dispatched", disp + reg, `${P(disp + reg, n)} of lots${reg ? ` \xB7 ${reg} under regular production` : ""}`, "--good", "del:Dispatched") + k("Ready for dispatch", ready, "waiting to ship", "--info", "del:Ready for dispatch") + k("Hold", hold, "dispatch on hold", "--warn", "del:Hold") + k("Not dispatched yet", notd, "in development or awaiting sample", "--g1", "del:Not dispatched") + k("PPAP approved", appr, `${P(appr, n)} \xB7 approved for production`, "--g4", "stage:Approved for production") + k("PPAP pending", ppap, "run, submission or approval pending", "--g3", "stage:PPAP") + k("PO received", cnt((r) => r.hasPO), `${N0(cnt((r) => !r.hasPO))} lots without PO`, "--accent", "po") + k("Unique parts", uniq, "distinct part numbers in view", "--p1", "") + k("Sample under development", cnt((r) => r.ps === "Sample Under Development"), "not yet submitted", "--g1", "ps:Sample Under Development") + k("PPAP submission pending", cnt((r) => r.ps === "PPAP Submission Pending"), "PPAP to be submitted", "--g3", "ps:PPAP Submission Pending") + k("Overdue readiness", overdue, "readiness date passed, not dispatched", "--bad", "");
+    $("kpis").innerHTML = k("Total sample lots", n, `${N0(uniq)} unique part numbers \xB7 ${N0(HID.length)} cancelled / discontinued not counted`, "", "", "hero") + k("Dispatched", disp + reg, `${P(disp + reg, n)} of lots${reg ? ` \xB7 ${reg} under regular production` : ""}`, "--good", "del:Dispatched") + k("Ready for dispatch", ready, "waiting to ship", "--info", "del:Ready for dispatch") + k("Hold", hold, "dispatch on hold", "--warn", "del:Hold") + k("Not dispatched yet", notd, "in development or awaiting sample", "--g1", "del:Not dispatched") + k("PPAP approved", appr, `${P(appr, n)} \xB7 approved for production`, "--g4", "stage:Approved for production") + k("PPAP pending", ppap, "run, submission or approval pending", "--g3", "stage:PPAP") + k("PO received", cnt((r) => r.hasPO), `${N0(cnt((r) => !r.hasPO))} lots without PO`, "--accent", "po") + k("Unique parts", uniq, "distinct part numbers in view", "--p1", "") + k("Sample under development", cnt((r) => r.ps === "Sample Under Development"), "not yet submitted", "--g1", "ps:Sample Under Development") + k("PPAP submission pending", cnt((r) => r.ps === "PPAP Submission Pending"), "PPAP to be submitted", "--g3", "ps:PPAP Submission Pending") + k("Overdue readiness", overdue, "readiness date passed, not dispatched", "--bad", "");
     $("kpis").querySelectorAll("button.kpi").forEach((b) => b.onclick = () => {
       const a = b.dataset.act;
       if (a === "po") setF("po", "yes", true);
@@ -534,7 +534,7 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
     table("tAttn", [{ k: "why", l: "Why", f: (v) => v.map((x) => `<span class="pill ${/Critical|rejected/.test(x) ? "t-bad" : "t-warn"}" style="margin:1px 4px 1px 0">${esc(x)}</span>`).join("") }, { k: "project", l: "Project", f: projTag }, { k: "pn", l: "Part no", f: (v) => `<span class="mono">${esc(v)}</span>`, cls: "nw" }, { k: "pd", l: "Description", cls: "wr" }, { k: "ps", l: "Part status", f: psPill }, { k: "comments", l: "Sheet comment", cls: "wr internal" }], att, { empty: "Nothing flagged in this view." });
     renderAll(L);
     $("hidPanel").hidden = !HID.length;
-    $("hidSum").textContent = `Hidden rows in the sheet (${HID.length}) \xB7 not counted`;
+    $("hidSum").textContent = `Cancelled / discontinued (${HID.length}) \xB7 not counted above`;
     table("tHid", [{ k: "project", l: "Project", f: projTag }, { k: "row", l: "Excel row", n: 1 }, { k: "pn", l: "Part no", f: (v) => `<span class="mono">${esc(v)}</span>`, cls: "nw" }, { k: "pd", l: "Description", cls: "wr" }, { k: "ps", l: "Part status", f: psPill }, { k: "del", l: "Delivery", f: (v, r) => delPill(v, r) }, { k: "sa", l: "Sample approval", cls: "wr" }], HID);
   }
   const ACOLS = [
@@ -725,20 +725,21 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
   }
   let dlg = null, watching = false, busy = false, autoT = null, lastSheets = null;
   let readErrs = [];
+  const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
   async function readSheet(name) {
-    return await Excel.run(async (ctx) => {
+    const readSheetCore = Excel.run(async (ctx) => {
       const s = ctx.workbook.worksheets.getItem(name);
       window.__step = "reading used range (" + name + ")";
       const u = s.getUsedRangeOrNullObject(true);
       u.load("rowCount,rowIndex,columnCount,columnIndex");
       await ctx.sync();
       if (u.isNullObject) return null;
-      const n = u.rowIndex + u.rowCount, nc = Math.min(u.columnIndex + u.columnCount, 40);
+      const n2 = u.rowIndex + u.rowCount, nc = Math.min(u.columnIndex + u.columnCount, 40);
       window.__step = "reading cell values (" + name + ")";
       const cols = new Array(nc).fill(null);
       let rs = [];
       for (let c = 0; c < nc; c++) {
-        const r = s.getRangeByIndexes(0, c, n, 1);
+        const r = s.getRangeByIndexes(0, c, n2, 1);
         r.load("values");
         rs.push(r);
       }
@@ -748,53 +749,27 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
       } catch (e) {
         for (let c = 0; c < nc; c++) {
           try {
-            const r = s.getRangeByIndexes(0, c, n, 1);
+            const r = s.getRangeByIndexes(0, c, n2, 1);
             r.load("values");
             await ctx.sync();
             cols[c] = r.values.map((x) => x[0]);
           } catch (e1) {
             try {
-              const r = s.getRangeByIndexes(0, c, n, 1);
+              const r = s.getRangeByIndexes(0, c, n2, 1);
               r.load("text");
               await ctx.sync();
               cols[c] = r.text.map((x) => x[0]);
             } catch (e2) {
-              cols[c] = new Array(n).fill("");
+              cols[c] = new Array(n2).fill("");
             }
           }
         }
       }
-      const rows = [];
-      for (let i = 0; i < n; i++) {
+      const rows2 = [];
+      for (let i = 0; i < n2; i++) {
         const row = new Array(nc);
         for (let c = 0; c < nc; c++) row[c] = cols[c][i];
-        rows.push(row);
-      }
-      window.__step = "reading hidden rows (" + name + ")";
-      let hidden = new Array(n).fill(false);
-      try {
-        const hr = [];
-        for (let i = 0; i < n; i++) {
-          const c = s.getRangeByIndexes(i, 0, 1, 1);
-          c.load("rowHidden");
-          hr.push(c);
-        }
-        await ctx.sync();
-        hidden = hr.map((c) => !!c.rowHidden);
-      } catch (e) {
-      }
-      window.__step = "reading comments (" + name + ")";
-      const comments = {};
-      try {
-        s.comments.load("items/content");
-        await ctx.sync();
-        const locs = s.comments.items.map((c) => c.getLocation().load("rowIndex"));
-        await ctx.sync();
-        s.comments.items.forEach((c, i) => {
-          const r = locs[i].rowIndex;
-          (comments[r] = comments[r] || []).push(c.content);
-        });
-      } catch (e) {
+        rows2.push(row);
       }
       if (!watching) {
         try {
@@ -803,8 +778,21 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
         } catch (e) {
         }
       }
-      return { name, rows, hidden, comments };
+      return { name, rows: rows2, n: n2 };
     });
+    const res = await readSheetCore;
+    if (!res) return null;
+    const { rows } = res;
+    let n = 0;
+    for (let i = rows.length - 1; i >= 0; i--) {
+      if (rows[i].some((v) => v !== "" && v != null)) {
+        n = i + 1;
+        break;
+      }
+    }
+    rows.length = n;
+    const hidden = new Array(n).fill(false), comments = {};
+    return { name, rows, hidden, comments };
   }
   async function readWorkbook() {
     window.__step = "reading sheet list";
@@ -830,8 +818,10 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
     if (!out.length) throw new Error(readErrs.join(" \xB7 "));
     return out;
   }
+  let imagesOff = false;
   async function loadImages(force) {
     if (force) IMG = {};
+    if (imagesOff) return;
     for (const sh of lastSheets || []) {
       const hi = NXP.findHeaderRow(sh.rows);
       if (hi < 0) continue;
@@ -840,7 +830,7 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
       const recRows = ALL.filter((r) => r.sheet === sh.name).map((r) => r.row - 1);
       const key = (i) => sh.name + "|" + (i + 1);
       try {
-        await Excel.run(async (ctx) => {
+        await withTimeout(Excel.run(async (ctx) => {
           const ws = ctx.workbook.worksheets.getItem(sh.name);
           try {
             ws.shapes.load("items/type,top,left,width,height");
@@ -884,8 +874,12 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
             }
             paintImages();
           }
-        });
+        }), 2e4);
       } catch (e) {
+        if (String(e && e.message) === "timeout") {
+          imagesOff = true;
+          break;
+        }
       }
     }
     paintImages();
