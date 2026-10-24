@@ -1188,6 +1188,14 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
         $("bigBtn").onclick = openBig;
       }
       toast("Loading data\u2026");
+      const stepT = setInterval(() => {
+        if (window.__started && lastSheets) {
+          clearInterval(stepT);
+          return;
+        }
+        const t = $("toast");
+        if (!t.hidden && !t.className.includes("err")) t.textContent = "Loading data\u2026 " + window.__step;
+      }, 700);
       load(true).then((ok) => {
         if (ok) {
           $("toast").hidden = true;
