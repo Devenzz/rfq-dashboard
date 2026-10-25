@@ -272,7 +272,7 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 (function() {
   "use strict";
   const EMBED = null;
-  const MODE = /* @__PURE__ */ ((q) => q === "dialog" || q === "tab" ? q : "main")(new URLSearchParams(location.search).get("mode"));
+  const MODE = /* @__PURE__ */ ((q) => q === "dialog" ? q : "main")(new URLSearchParams(location.search).get("mode"));
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s != null ? s : "").replace(/[&<>"]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[m]);
   const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -425,7 +425,6 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
   const psPill = (ps) => `<span class="pill ${PS_T(ps)}"><i></i>${esc(ps)}</span>`;
   const delPill = (d, r) => `<span class="pill ${DEL_T[d] || "t-neu"}"><i></i>${esc(d)}${r && r.dDate ? " \xB7 " + fmtD(r.dDate) : ""}</span>`;
   const flagHtml = (r) => (r.critical ? '<span class="flag">CRITICAL</span>' : "") + (r.high ? '<span class="flag hi">HIGH PRIORITY</span>' : "");
-  const thumb = (r) => `<span class="thumb ${IMG[r.key] ? "" : "none"}" data-img="${esc(r.key)}" style="${IMG[r.key] ? `background-image:url('${IMG[r.key]}')` : ""}" role="img" aria-label="Part image ${esc(r.pn)}"></span>`;
   function render() {
     if (!started) return;
     summary();
@@ -538,7 +537,6 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
     table("tHid", [{ k: "project", l: "Project", f: projTag }, { k: "row", l: "Excel row", n: 1 }, { k: "pn", l: "Part no", f: (v) => `<span class="mono">${esc(v)}</span>`, cls: "nw" }, { k: "pd", l: "Description", cls: "wr" }, { k: "ps", l: "Part status", f: psPill }, { k: "del", l: "Delivery", f: (v, r) => delPill(v, r) }, { k: "sa", l: "Sample approval", cls: "wr" }], HID);
   }
   const ACOLS = [
-    { k: "img", l: "Image", s: false, f: (v, r) => thumb(r) },
     { k: "project", l: "Project", f: projTag },
     { k: "pn", l: "Part no", f: (v, r) => `<span class="mono">${esc(v)}</span>${flagHtml(r)}`, cls: "nw" },
     { k: "rev", l: "Rev.", cls: "nw" },
@@ -599,7 +597,7 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
       ["Sheet comment", esc(r.comments || "\u2014"), 1],
       ["Excel row", `${esc(r.sheet)} \xB7 row ${r.row}${r.hidden ? " (hidden)" : ""}`, 1]
     ];
-    $("dwBody").innerHTML = (IMG[r.key] ? `<img class="bigimg" src="${IMG[r.key]}" alt="Part image ${esc(r.pn)}">` : "") + `<div class="kv">${kv.map(([a, b, int]) => `<div class="${int ? "internal" : ""}">${a}</div><div class="${int ? "internal" : ""}">${b}</div>`).join("")}</div><h2 style="font:700 17px var(--f-num);text-transform:uppercase;letter-spacing:.04em;margin:4px 0 0">History of this part number <small style="font:400 12px var(--f-ui);color:var(--muted);text-transform:none">${hist.length} lot(s)</small></h2>
+    $("dwBody").innerHTML = `<div class="kv">${kv.map(([a, b, int]) => `<div class="${int ? "internal" : ""}">${a}</div><div class="${int ? "internal" : ""}">${b}</div>`).join("")}</div><h2 style="font:700 17px var(--f-num);text-transform:uppercase;letter-spacing:.04em;margin:4px 0 0">History of this part number <small style="font:400 12px var(--f-ui);color:var(--muted);text-transform:none">${hist.length} lot(s)</small></h2>
      <div class="tbl"><table><thead><tr><th>Row</th><th>Rev.</th><th>Part status</th><th>Delivery</th><th>PO</th></tr></thead><tbody>${hist.map((x) => `<tr><td>${x.row}${x.hidden ? " \xB7 hidden" : ""}</td><td>${esc(x.rev || "\u2014")}</td><td>${psPill(x.ps)}</td><td>${delPill(x.del, x)}</td><td>${esc(x.po || "\u2014")}</td></tr>`).join("")}</tbody></table></div>`;
     $("drawer").hidden = false;
     $("dwClose").focus();
@@ -615,13 +613,6 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
     if (e.key === "Escape") closeDrawer();
   });
   function paintImages() {
-    document.querySelectorAll("[data-img]").forEach((el) => {
-      const u = IMG[el.dataset.img];
-      if (u) {
-        el.style.backgroundImage = `url('${u}')`;
-        el.classList.remove("none");
-      }
-    });
   }
   let tT = null;
   function toast(m, k) {
@@ -704,7 +695,7 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
     b.className = "banner" + (err ? " err" : "");
     b.innerHTML = m || "";
   }
-  function loadSheets(sheets, stamp, errs) {
+  function loadSheets(sheets, stamp2, errs) {
     const recs = [], e = errs || [];
     for (const s of sheets) {
       const res = NXP.parse(s.name, s.rows, s.hidden, s.comments);
@@ -717,349 +708,120 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
     }
     banner(e.length ? "Some sheets were skipped: " + e.join(" \xB7 ") : "", e.length > 0);
     prep(recs);
-    $("upd").textContent = "Last Updated: " + stamp;
+    $("upd").textContent = "Last Updated: " + stamp2;
     fillSelects();
     started = true;
     render();
     return true;
   }
-  let dlg = null, watching = false, busy = false, autoT = null, lastSheets = null;
-  let readErrs = [];
-  const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
-  async function readSheet(name) {
-    const readSheetCore = Excel.run(async (ctx) => {
-      const s = ctx.workbook.worksheets.getItem(name);
-      window.__step = "reading used range (" + name + ")";
-      const u = s.getUsedRangeOrNullObject(true);
-      u.load("rowCount,rowIndex,columnCount,columnIndex");
-      await ctx.sync();
-      if (u.isNullObject) return null;
-      const n2 = u.rowIndex + u.rowCount, nc = Math.min(u.columnIndex + u.columnCount, 40);
-      window.__step = "reading cell values (" + name + ")";
-      const cols = new Array(nc).fill(null);
-      let rs = [];
-      for (let c = 0; c < nc; c++) {
-        const r = s.getRangeByIndexes(0, c, n2, 1);
-        r.load("values");
-        rs.push(r);
-      }
-      try {
+  let dlg = null, stamp = "", debounce = null, loading = false, watching = false;
+  async function loadFromExcel(quiet) {
+    if (loading) return;
+    loading = true;
+    const rb = $("refBtn");
+    rb.classList.add("spin");
+    rb.disabled = true;
+    if (!quiet) toast("Loading data\u2026");
+    try {
+      window.__step = "reading workbook";
+      const sheets = await Excel.run(async (ctx) => {
+        const ws = ctx.workbook.worksheets;
+        ws.load("items/name");
         await ctx.sync();
-        rs.forEach((r, c) => cols[c] = r.values.map((x) => x[0]));
-      } catch (e) {
-        for (let c = 0; c < nc; c++) {
-          try {
-            const r = s.getRangeByIndexes(0, c, n2, 1);
-            r.load("values");
-            await ctx.sync();
-            cols[c] = r.values.map((x) => x[0]);
-          } catch (e1) {
-            try {
-              const r = s.getRangeByIndexes(0, c, n2, 1);
-              r.load("text");
-              await ctx.sync();
-              cols[c] = r.text.map((x) => x[0]);
-            } catch (e2) {
-              cols[c] = new Array(n2).fill("");
-            }
+        const src = ws.items.filter((s) => NXP.projectOf(s.name));
+        if (!src.length) throw new Error('No sheet named like "Earth truss Parts" or "Anchor Parts". Sheets: ' + ws.items.map((s) => s.name).join(", "));
+        const used = src.map((s) => {
+          const u = s.getUsedRangeOrNullObject(true);
+          u.load("rowCount,columnCount,rowIndex,columnIndex");
+          return u;
+        });
+        await ctx.sync();
+        window.__step = "reading headers";
+        const heads = src.map((s, i) => used[i].isNullObject ? null : s.getRangeByIndexes(0, 0, Math.min(15, used[i].rowIndex + used[i].rowCount), Math.min(used[i].columnIndex + used[i].columnCount, 60)).load("values"));
+        await ctx.sync();
+        window.__step = "reading columns";
+        const parts = [];
+        src.forEach((s, i) => {
+          if (!heads[i]) return;
+          const top = heads[i].values, hi = NXP.findHeaderRow(top);
+          if (hi < 0) {
+            parts.push({ s, name: s.name, err: true });
+            return;
           }
+          const I = NXP.mapHeaders(top[hi]), n = used[i].rowIndex + used[i].rowCount;
+          const cols = [...new Set(Object.keys(I).filter((k) => k !== "img" && I[k] >= 0).map((k) => I[k]))];
+          parts.push({ s, name: s.name, n, cols, nc: top[hi].length, ranges: cols.map((c) => s.getRangeByIndexes(0, c, n, 1).load("values")) });
+        });
+        await ctx.sync();
+        const out = [];
+        for (const p of parts) {
+          if (p.err) {
+            out.push({ name: p.name, rows: [], hidden: [], comments: {} });
+            continue;
+          }
+          const rows = [];
+          for (let r = 0; r < p.n; r++) {
+            const row = new Array(p.nc).fill("");
+            p.cols.forEach((c, j) => row[c] = p.ranges[j].values[r][0]);
+            rows.push(row);
+          }
+          out.push({ name: p.name, rows, hidden: [], comments: {} });
         }
-      }
-      const rows2 = [];
-      for (let i = 0; i < n2; i++) {
-        const row = new Array(nc);
-        for (let c = 0; c < nc; c++) row[c] = cols[c][i];
-        rows2.push(row);
-      }
-      if (!watching) {
-        try {
-          s.onChanged.add(onSheetChange);
+        if (!watching) {
+          watching = true;
+          parts.forEach((p) => p.s.onChanged.add(onSheetChange));
           await ctx.sync();
-        } catch (e) {
         }
-      }
-      return { name, rows: rows2, n: n2 };
-    });
-    const res = await readSheetCore;
-    if (!res) return null;
-    const { rows } = res;
-    let n = 0;
-    for (let i = rows.length - 1; i >= 0; i--) {
-      if (rows[i].some((v) => v !== "" && v != null)) {
-        n = i + 1;
-        break;
-      }
+        return out;
+      });
+      window.__step = "building dashboard";
+      stamp = fmtStamp(/* @__PURE__ */ new Date());
+      const ok = loadSheets(sheets, stamp);
+      window.__started = true;
+      toast(ok ? "Data Updated Successfully" : "No data found", ok ? "ok" : "err");
+      sendToDialog(sheets);
+    } catch (e) {
+      window.__started = true;
+      toast("Could not read the workbook", "err");
+      banner("Could not read the workbook: " + esc(e.message || e) + " (step: " + window.__step + "). Press Refresh Data to try again.", true);
     }
-    rows.length = n;
-    const hidden = new Array(n).fill(false), comments = {};
-    return { name, rows, hidden, comments };
+    rb.classList.remove("spin");
+    rb.disabled = false;
+    loading = false;
   }
-  async function readWorkbook() {
-    window.__step = "reading sheet list";
-    const names = await Excel.run(async (ctx) => {
-      const w = ctx.workbook.worksheets;
-      w.load("items/name");
-      await ctx.sync();
-      return w.items.map((s) => s.name);
-    });
-    const src = names.filter((n) => NXP.projectOf(n));
-    readErrs = [];
-    if (!src.length) throw new Error('No sheet named like "Earth truss Parts" or "Anchor Parts" found. Sheets in this file: ' + names.join(", "));
-    const out = [];
-    for (const n of src) {
-      try {
-        const r = await readSheet(n);
-        if (r) out.push(r);
-      } catch (e) {
-        readErrs.push(n + ": " + (e.message || e) + " (step: " + window.__step + ")");
-      }
-    }
-    watching = true;
-    if (!out.length) throw new Error(readErrs.join(" \xB7 "));
-    return out;
-  }
-  let imagesOff = false;
-  async function loadImages(force) {
-    if (force) IMG = {};
-    if (imagesOff) return;
-    for (const sh of lastSheets || []) {
-      const hi = NXP.findHeaderRow(sh.rows);
-      if (hi < 0) continue;
-      const I = NXP.mapHeaders(sh.rows[hi]);
-      if (I.img < 0) continue;
-      const recRows = ALL.filter((r) => r.sheet === sh.name).map((r) => r.row - 1);
-      const key = (i) => sh.name + "|" + (i + 1);
-      try {
-        await withTimeout(Excel.run(async (ctx) => {
-          const ws = ctx.workbook.worksheets.getItem(sh.name);
-          try {
-            ws.shapes.load("items/type,top,left,width,height");
-            const cells = recRows.map((i) => {
-              const c = ws.getRangeByIndexes(i, I.img, 1, 1);
-              c.load("top,left,width,height");
-              return c;
-            });
-            await ctx.sync();
-            const pend = [];
-            for (const shp of ws.shapes.items) {
-              if (String(shp.type).toLowerCase() !== "image") continue;
-              const cy = shp.top + shp.height / 2, cx = shp.left + shp.width / 2;
-              const k = cells.findIndex((c) => cy >= c.top && cy < c.top + c.height && cx >= c.left - 4 && cx <= c.left + c.width + 4);
-              if (k >= 0 && !IMG[key(recRows[k])] && !pend.some((p) => p.i === recRows[k])) pend.push({ i: recRows[k], r: shp.getAsImage(Excel.PictureFormat.png) });
-            }
-            if (pend.length) {
-              await ctx.sync();
-              pend.forEach((p) => {
-                if (p.r.value) IMG[key(p.i)] = "data:image/png;base64," + p.r.value;
-              });
-            }
-          } catch (e) {
-          }
-          const need = recRows.filter((i) => !IMG[key(i)]);
-          const vt = need.map((i) => {
-            const c = ws.getRangeByIndexes(i, I.img, 1, 1);
-            c.load("valueTypes");
-            return { i, c };
-          });
-          await ctx.sync();
-          const todo = vt.filter((x) => x.c.valueTypes && x.c.valueTypes[0][0] !== "Empty");
-          for (let b = 0; b < todo.length; b += 8) {
-            const part = todo.slice(b, b + 8).map((x) => ({ i: x.i, r: x.c.getImage() }));
-            try {
-              await ctx.sync();
-              part.forEach((p) => {
-                if (p.r.value) IMG[key(p.i)] = "data:image/png;base64," + p.r.value;
-              });
-            } catch (e) {
-            }
-            paintImages();
-          }
-        }), 2e4);
-      } catch (e) {
-        if (String(e && e.message) === "timeout") {
-          imagesOff = true;
-          break;
-        }
-      }
-    }
-    paintImages();
-    sendToDialog();
-    sendToTab();
-  }
+  let lastSheets = null;
   function onSheetChange() {
-    if (!busy) {
-      clearTimeout(autoT);
-      autoT = setTimeout(() => load(false, true), 1500);
-    }
+    clearTimeout(debounce);
+    debounce = setTimeout(() => loadFromExcel(true), 1500);
     return Promise.resolve();
   }
-  async function load(forceImages, quiet) {
-    busy = true;
-    try {
-      lastSheets = await readWorkbook();
-      window.__step = "building dashboard";
-      const ok = loadSheets(lastSheets, fmtStamp(/* @__PURE__ */ new Date()), readErrs.map(esc));
-      if (ok) {
-        window.__started = true;
-      }
-      window.__step = "loading part images";
-      sendToDialog();
-      sendToTab();
-      if (ok) {
-        if (quiet) toast("Data Updated Successfully", "ok");
-        loadImages(forceImages).catch(() => {
-        });
-      }
-      return ok;
-    } finally {
-      busy = false;
-    }
-  }
-  async function refreshData() {
-    const b = $("refBtn");
-    b.classList.add("spin");
-    b.disabled = true;
-    toast("Refreshing Data...");
-    try {
-      const ok = await load(true);
-      toast(ok ? "Data Updated Successfully" : "No data found", ok ? "ok" : "err");
-    } catch (e) {
-      toast("Refresh failed", "err");
-      banner("Refresh failed: " + esc(e.message || e) + ". Check that the Earth truss and Anchor sheets are in this workbook.", true);
-    }
-    b.classList.remove("spin");
-    b.disabled = false;
-  }
-  let tabWin = null;
-  function isWeb() {
-    try {
-      return Office.context.platform === Office.PlatformType.OfficeOnline;
-    } catch (e) {
-      return false;
-    }
-  }
-  let tabAsks = 0, tabSends = 0;
-  function sendToTab() {
-    if (!tabWin || !lastSheets) return;
-    try {
-      tabWin.postMessage({ nx: "data", sheets: lastSheets, img: IMG, stamp: $("upd").textContent }, "*");
-      tabSends++;
-    } catch (e) {
-      toast("Could not send data to the full screen tab: " + e.message, "err");
-    }
-  }
-  function openTab() {
-    let w = null;
-    try {
-      w = window.open(location.origin + location.pathname + "?mode=tab", "nxPartsFull");
-    } catch (e) {
-    }
-    if (!w) {
-      toast("The browser blocked the new tab. Allow pop-ups for this site, then press Open full screen again.", "err");
-      return;
-    }
-    tabWin = w;
-    setTimeout(sendToTab, 1200);
-  }
-  addEventListener("message", (e) => {
-    const d = e.data || {};
-    if (!d || typeof d !== "object" || !d.nx) return;
-    if (e.source !== tabWin && e.origin !== location.origin && e.origin !== "null") return;
-    if (d.nx === "ready") {
-      tabWin = e.source;
-      tabAsks++;
-      if (!lastSheets) return;
-      sendToTab();
-    } else if (d.nx === "refresh") {
-      refreshData();
-    }
-  });
   function openBig() {
     Office.context.ui.displayDialogAsync(location.origin + location.pathname + "?mode=dialog", { height: 100, width: 100, displayInIframe: true }, (res) => {
       if (res.status !== Office.AsyncResultStatus.Succeeded) {
-        toast("Could not open the large window: " + res.error.message, "err");
+        toast("Could not open full screen: " + res.error.message, "err");
         return;
       }
       dlg = res.value;
       dlg.addEventHandler(Office.EventType.DialogMessageReceived, (m) => {
         if (m.message === "ready") sendToDialog();
-        else if (m.message === "nols") sendToDialog("msg");
-        else if (m.message === "refresh") refreshData();
+        if (m.message === "refresh") loadFromExcel();
       });
       dlg.addEventHandler(Office.EventType.DialogEventReceived, () => {
         dlg = null;
       });
     });
   }
-  const LSK = "nx-payload";
-  function lsSet(obj) {
+  function sendToDialog(sheets) {
+    if (sheets) lastSheets = sheets;
+    if (!dlg || !lastSheets) return;
+    const s = JSON.stringify({ sheets: lastSheets, stamp }), size = 24e3, n = Math.ceil(s.length / size), id = Date.now();
     try {
-      localStorage.setItem(LSK, JSON.stringify(obj));
-      return true;
+      for (let i = 0; i < n; i++) dlg.messageChild(JSON.stringify({ id, i, n, s: s.slice(i * size, (i + 1) * size) }));
     } catch (e) {
-      try {
-        localStorage.removeItem(LSK);
-      } catch (_) {
-      }
-      return false;
+      toast("Could not send data to full screen: " + e.message, "err");
     }
-  }
-  function lsGet() {
-    try {
-      const s = localStorage.getItem(LSK);
-      return s ? JSON.parse(s) : null;
-    } catch (e) {
-      return null;
-    }
-  }
-  function sendChunks(obj) {
-    const s = JSON.stringify(obj), size = 12e3, n = Math.ceil(s.length / size), id = Date.now() + Math.random();
-    for (let i = 0; i < n; i++) {
-      try {
-        dlg.messageChild(JSON.stringify({ t: "c", id, i, n, s: s.slice(i * size, (i + 1) * size) }));
-      } catch (e) {
-      }
-    }
-  }
-  let lastVer = 0;
-  function sendToDialog(mode) {
-    if (!lastSheets) return;
-    const stamp = $("upd").textContent, v = Date.now();
-    lastVer = v;
-    const okLS = lsSet({ v, sheets: lastSheets, img: IMG, stamp }) || lsSet({ v, sheets: lastSheets, img: {}, stamp, noimg: true });
-    if (!dlg) return;
-    if (okLS && mode !== "msg") {
-      try {
-        dlg.messageChild(JSON.stringify({ t: "ls", v }));
-      } catch (e) {
-      }
-      return;
-    }
-    sendChunks({ t: "data", sheets: lastSheets, stamp });
-    Object.keys(IMG).forEach((k) => sendChunks({ t: "img", k, u: IMG[k] }));
   }
   const buf = {};
-  let gotVer = 0, readyTimer = null;
-  function applyPayload(d) {
-    if (d.img) IMG = Object.assign({}, IMG, d.img);
-    loadSheets(d.sheets, String(d.stamp || "").replace("Last Updated: ", ""));
-    paintImages();
-    clearInterval(readyTimer);
-    readyTimer = null;
-    const rb = $("refBtn");
-    rb.classList.remove("spin");
-    rb.disabled = false;
-    $("toast").hidden = true;
-  }
-  function readLS(v) {
-    const d = lsGet();
-    if (d && d.sheets && (!v || d.v >= v) && d.v !== gotVer) {
-      gotVer = d.v;
-      applyPayload(d);
-      return true;
-    }
-    return !!(d && d.v === gotVer && gotVer);
-  }
   function onParentMsg(arg) {
     let m;
     try {
@@ -1067,11 +829,6 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
     } catch (e) {
       return;
     }
-    if (m.t === "ls") {
-      if (!readLS(m.v)) Office.context.ui.messageParent("nols");
-      return;
-    }
-    if (m.t !== "c") return;
     const b = buf[m.id] = buf[m.id] || { c: [], k: 0 };
     if (b.c[m.i] == null) {
       b.c[m.i] = m.s;
@@ -1080,65 +837,16 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
     if (b.k === m.n) {
       const d = JSON.parse(b.c.join(""));
       delete buf[m.id];
-      if (d.t === "data") applyPayload({ sheets: d.sheets, stamp: d.stamp });
-      else if (d.t === "img") {
-        IMG[d.k] = d.u;
-        paintImages();
-      }
+      loadSheets(d.sheets, d.stamp);
+      $("toast").hidden = true;
+      const rb = $("refBtn");
+      rb.classList.remove("spin");
+      rb.disabled = false;
     }
   }
   __unboot();
   window.__step = "waiting for Excel";
   window.__officeReady.then((info) => {
-    if (MODE === "tab") {
-      window.__started = true;
-      toast("Waiting for data from Excel\u2026");
-      let got = 0, pings = 0;
-      addEventListener("message", (e) => {
-        const d = e.data || {};
-        if (!d || typeof d !== "object") return;
-        if (e.source !== window.opener && e.origin !== location.origin) return;
-        if (d.nx === "data") {
-          got++;
-          IMG = d.img || {};
-          loadSheets(d.sheets, String(d.stamp || "").replace("Last Updated: ", ""));
-          paintImages();
-          $("toast").hidden = true;
-          const rb = $("refBtn");
-          rb.classList.remove("spin");
-          rb.disabled = false;
-        }
-      });
-      const ping = () => {
-        try {
-          if (window.opener) {
-            window.opener.postMessage({ nx: "ready" }, "*");
-            pings++;
-          }
-        } catch (e) {
-        }
-      };
-      ping();
-      let n = 0;
-      const iv = setInterval(() => {
-        if (started || ++n > 16) {
-          clearInterval(iv);
-          if (!started) banner(window.opener ? `This tab did not receive data from Excel. Keep the NX Parts Status panel open in Excel (wait until it shows the dashboard) and press Open full screen again. [diag: origin ${location.origin}, requests sent ${pings}, replies ${got}]` : "Open this view from Excel: Home \u2192 NX Parts Status \u2192 Open full screen. [diag: no link to the Excel panel]", true);
-        } else ping();
-      }, 1500);
-      $("refBtn").onclick = () => {
-        const rb = $("refBtn");
-        rb.classList.add("spin");
-        rb.disabled = true;
-        toast("Refreshing Data...");
-        try {
-          window.opener.postMessage({ nx: "refresh" }, "*");
-        } catch (e) {
-          toast("Refresh from the Excel panel", "err");
-        }
-      };
-      return;
-    }
     if (MODE === "dialog") {
       window.__started = true;
       toast("Loading data\u2026");
@@ -1146,60 +854,16 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
         const rb = $("refBtn");
         rb.classList.add("spin");
         rb.disabled = true;
-        toast("Refreshing Data...");
         Office.context.ui.messageParent("refresh");
       };
-      addEventListener("storage", (e) => {
-        if (e.key === LSK) readLS();
-      });
-      readLS();
-      const ping = () => {
-        try {
-          Office.context.ui.messageParent("ready");
-        } catch (e) {
-        }
-      };
-      Office.context.ui.addHandlerAsync(Office.EventType.DialogParentMessageReceived, onParentMsg, () => ping());
-      let tries = 0;
-      readyTimer = setInterval(() => {
-        if (++tries > 20) {
-          clearInterval(readyTimer);
-          if (!gotVer && !started) banner("The full screen window did not receive data from Excel. Close it and use the side panel, or press Open full screen again.", true);
-          return;
-        }
-        readLS();
-        ping();
-      }, 2e3);
+      Office.context.ui.addHandlerAsync(Office.EventType.DialogParentMessageReceived, onParentMsg, () => Office.context.ui.messageParent("ready"));
     } else if (info && info.host === Office.HostType.Excel) {
-      $("refBtn").onclick = refreshData;
-      const web = isWeb(), canBig = Office.context.requirements.isSetSupported("DialogApi", "1.2");
-      if (web) {
-        $("bigBtn").hidden = false;
-        $("bigBtn").textContent = "Open full screen (new tab)";
-        $("bigBtn").onclick = openTab;
-      } else if (canBig) {
+      $("refBtn").onclick = () => loadFromExcel();
+      if (Office.context.requirements.isSetSupported("DialogApi", "1.2")) {
         $("bigBtn").hidden = false;
         $("bigBtn").onclick = openBig;
       }
-      toast("Loading data\u2026");
-      const stepT = setInterval(() => {
-        if (window.__started && lastSheets) {
-          clearInterval(stepT);
-          return;
-        }
-        const t = $("toast");
-        if (!t.hidden && !t.className.includes("err")) t.textContent = "Loading data\u2026 " + window.__step;
-      }, 700);
-      load(true).then((ok) => {
-        if (ok) {
-          $("toast").hidden = true;
-          if (!web && canBig && !dlg) openBig();
-        } else window.__started = true;
-      }).catch((e) => {
-        window.__started = true;
-        toast("Could not read the workbook", "err");
-        banner("Could not read the workbook: " + esc(e.message || e) + " (step: " + window.__step + ")", true);
-      });
+      loadFromExcel();
     } else {
       window.__started = true;
       $("refBtn").disabled = true;
