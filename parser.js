@@ -38,7 +38,7 @@ const RFQP = (() => {
   const COLS = {
     st: ['status'], cat: ['catagory', 'category'], rt: ['rfq10rfq20'], ed: ['exportdomestic'], c: ['customername'], no: ['rfqno'],
     ton: ['ton'], d: ['rfqreceiptdate'], t: ['quotationtargatedate', 'quotationtargetdate'], s: ['quotationsentdate'], ow: ['owner'],
-    m: ['matrial', 'material'], pc: ['process'], pt: ['noofparts'], pri: ['priority'], rm: ['remarks'], to: ['expectedyearturnover'],
+    m: ['matrial', 'material'], pc: ['process'], pt: ['noofparts'], pri: ['priority'], rm: ['remarks'], to: ['expectedyearturnoverininr', 'expectedyearturnover'],
     g: ['castinggrade'], al: ['checklist9targetdatealert'], loc: ['countrystate', 'country'], cv: ['convertedturnover'], pro: ['prospectiveinquiry', 'prospective']
   };
   function mapHeaders(h) {
@@ -84,7 +84,7 @@ const RFQP = (() => {
       const pr = txt(g(r, 'pri')), prT = pr.charAt(0).toUpperCase() + pr.slice(1).toLowerCase();
       const cat = txt(g(r, 'cat')).toUpperCase();
       recs.push({
-        no: txt(g(r, 'no')).slice(0, 40), d, t: ser(g(r, 't')), s: ser(sr), p: typeof sr === 'string' && sr.toLowerCase().includes('pending'),
+        no: txt(g(r, 'no')).slice(0, 40), d, t: ser(g(r, 't')), s: ser(sr), p: !ser(sr),  // submitted = valid Quotation Sent Date; 'Pending' text or blank = pending
         st: status(g(r, 'st')), cat: ['A', 'B', 'C', 'D', 'ND'].includes(cat) ? cat : 'NA',
         rt: rt0.includes('2.0') ? 'RFQ 2.0' : (rt0.startsWith('RFQ 1') ? 'RFQ 1.0' : 'NA'),
         ed: ['Export', 'Domestic'].includes(edT) ? edT : 'NA', c: txt(g(r, 'c')) || 'Unknown', ow: owners(g(r, 'ow')), pc: proc(g(r, 'pc')),
@@ -100,6 +100,8 @@ const RFQP = (() => {
       rec.cv = I.cv >= 0 ? (rec.cvErr ? 0 : Math.round(num(cvRaw) * 100) / 100) : (rec.st === 'Won' ? rec.exp : 0);
       if (rec.st === 'Won') rec.to = rec.cv;
     }
+    // same customer typed in different case / spacing -> one name (first spelling wins)
+    const cn = {}; recs.forEach(r => { const k = r.c.toLowerCase(); r.c = cn[k] || (cn[k] = r.c); });
     return { recs, cols: I };
   }
   const yearOf = name => { const m = String(name).match(/^\s*(sub|submitted)\b.*?(\d{4})\s*$/i); return m ? m[2] : null; };
