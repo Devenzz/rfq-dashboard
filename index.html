@@ -73,6 +73,7 @@ details summary{cursor:pointer;font-weight:600}
     <div class="src"><span class="dot busy" id="dot"></span><span id="srcTxt">Connecting to the workbook…</span></div></div>
   <div class="btns"><button class="btn pri" id="refBtn" type="button">Refresh</button><button class="btn" id="bigBtn" type="button" hidden>Open full screen</button><button class="btn" id="themeBtn" type="button">Dark</button></div>
 </div></header>
+<div style="max-width:1600px;margin:0 auto;padding:0 20px"><div class="banner" id="banner" hidden style="margin-top:12px"></div></div>
 <div class="fbar"><div class="fwrap">
   <div class="f wide"><label>Quotation</label><div class="seg" id="pm" role="group" aria-label="Quotation"><button data-v="sub" class="on" type="button">Submitted</button><button data-v="pend" type="button">Pending</button><button data-v="all" type="button">Both</button></div></div>
   <div class="f"><label for="fFrom">Receipt from</label><input type="date" id="fFrom"></div>
@@ -90,7 +91,6 @@ details summary{cursor:pointer;font-weight:600}
   <div class="f"><label>&nbsp;</label><button class="reset" id="reset" type="button">Reset filters</button></div>
 </div><div class="chips" id="chips"></div></div>
 <main>
-  <div class="banner" id="banner" hidden></div>
   <section class="kpis" id="kpis" aria-label="Key figures"></section>
   <div class="grid g2">
     <section class="card"><div class="hd"><h2>Monthly trend</h2><small>RFQs by receipt month · submitted vs pending</small></div><div class="ch"><canvas id="cMonth"></canvas></div></section>
@@ -575,42 +575,47 @@ function pickSheet(names){
   n=names.filter(function(x){return /^\s*sub(mitted)?\b/i.test(x);});
   return n.length?n.sort().slice(-1)[0]:null;
 }
+function withTimeout(p,ms,what){return Promise.race([p,new Promise(function(_,rej){setTimeout(function(){rej(new Error('Excel did not answer within '+(ms/1000)+' s while '+what));},ms);})]);}
+function run(what,fn,ms){window.__step=what;return withTimeout(Excel.run(fn),ms||45000,what);}
+var tick=null;
 function readExcel(quiet){
   if(loading)return Promise.resolve();loading=true;
-  var rb=$('refBtn');rb.disabled=true;if(!quiet)setSrc('Reading the workbook…','busy');
-  window.__step='opening workbook';
-  return Excel.run(function(ctx){
-    var wsc=ctx.workbook.worksheets;wsc.load('items/name');
-    return ctx.sync().then(function(){
-      var name=pickSheet(wsc.items.map(function(s){return s.name;}));
-      if(!name)throw new Error('No sheet named like "submitted 2026" in this workbook. Sheets: '+wsc.items.map(function(s){return s.name;}).join(', '));
-      window.__step='reading size of sheet '+name;var ws=wsc.getItem(name),u=ws.getUsedRangeOrNullObject(true);u.load('rowCount,columnCount,rowIndex,columnIndex');
-      return ctx.sync().then(function(){
-        if(u.isNullObject)throw new Error('Sheet "'+name+'" is empty.');
-        var n=u.rowIndex+u.rowCount,nc=Math.min(u.columnIndex+u.columnCount,80);
-        window.__step='reading header row ('+n+' rows)';var head=ws.getRangeByIndexes(0,0,Math.min(10,n),nc);head.load('values');
-        return ctx.sync().then(function(){
-          var top=head.values,hi=RFQ.findHeader(top);
-          if(hi<0)throw new Error('Header row with "RFQ No" and "Customer name" not found in sheet "'+name+'".');
-          var I=RFQ.mapHeaders(top[hi]),cols=[];Object.keys(I).forEach(function(k){if(I[k]>=0&&cols.indexOf(I[k])<0)cols.push(I[k]);});
-          window.__step='reading '+cols.length+' columns';var rs=cols.map(function(c){var r=ws.getRangeByIndexes(0,c,n,1);r.load('values');return r;});
-          return ctx.sync().then(function(){
-            var rows=[];for(var i=0;i<n;i++){var row=new Array(nc);for(var j=0;j<nc;j++)row[j]='';rows.push(row);}
-            cols.forEach(function(c,j){var v=rs[j].values;for(var i=0;i<n;i++)rows[i][c]=v[i][0];});
-            for(var i2=0;i2<=hi;i2++)rows[i2]=top[i2].slice();
-            if(!watching){watching=true;try{ws.onChanged.add(onChange);}catch(e){}}
-            return ctx.sync().then(function(){return {rows:rows,name:name};});
-          });
-        });
+  var rb=$('refBtn');rb.disabled=true;var t0=Date.now();
+  if(!quiet){clearInterval(tick);tick=setInterval(function(){setSrc('Loading: '+window.__step+' ('+Math.round((Date.now()-t0)/1000)+' s)','busy');},500);}
+  var name,top,hi,nc,cols,rows=[];
+  return run('listing sheets',function(ctx){var w=ctx.workbook.worksheets;w.load('items/name');return ctx.sync().then(function(){return w.items.map(function(x){return x.name;});});})
+  .then(function(names){
+    name=pickSheet(names);
+    if(!name)throw new Error('No sheet named like "submitted 2026" in this workbook. Sheets: '+names.join(', '));
+    return run('reading header of "'+name+'"',function(ctx){var r=ctx.workbook.worksheets.getItem(name).getRange('A1:CB10');r.load('values');return ctx.sync().then(function(){return r.values;});});
+  }).then(function(v){
+    top=v;hi=RFQ.findHeader(top);
+    if(hi<0)throw new Error('Header row with "RFQ No" and "Customer name" not found in sheet "'+name+'".');
+    var I=RFQ.mapHeaders(top[hi]);nc=top[hi].length;cols=[];Object.keys(I).forEach(function(k){if(I[k]>=0&&cols.indexOf(I[k])<0)cols.push(I[k]);});
+    var keyCols=[I.no,I.c],CH=1000;
+    // read the needed columns 1000 rows at a time until a block has no RFQ No / customer at all
+    function block(start){
+      return run('reading rows '+(start+1)+'–'+(start+CH),function(ctx){var ws=ctx.workbook.worksheets.getItem(name);
+        var rs=cols.map(function(c){var r=ws.getRangeByIndexes(start,c,CH,1);r.load('values');return r;});
+        return ctx.sync().then(function(){return rs.map(function(r){return r.values;});});})
+      .then(function(vals){
+        var any=false;
+        for(var i=0;i<CH;i++){var row=new Array(nc);for(var j=0;j<nc;j++)row[j]='';cols.forEach(function(c,k){row[c]=vals[k][i][0];});rows.push(row);
+          if(keyCols.some(function(c){return c>=0&&row[c]!==''&&row[c]!=null;}))any=true;}
+        if(any&&start+CH<60000)return block(start+CH);
       });
-    });
-  }).then(function(r){
+    }
+    return block(0);
+  }).then(function(){
+    for(var i=0;i<=hi;i++)rows[i]=top[i].slice();
+    var last=rows.length;while(last>hi+1&&!rows[last-1].some(function(x){return x!==''&&x!=null;}))last--;rows.length=last;
     var file='';try{var url=Office.context.document.url||'';file=decodeURIComponent(url.split(/[\\/]/).pop().split('?')[0]);}catch(e){}
-    window.__step='building dashboard';var changed=ingest(r.rows,{sheet:r.name,file:file,at:stamp()});
+    window.__step='building dashboard';var changed=ingest(rows,{sheet:name,file:file,at:stamp()});
     if(changed&&quiet)toast('Dashboard updated from the sheet','ok');
     if(!quiet)toast(changed?'Data loaded':'No changes in the sheet','ok');
-  }).catch(function(e){setSrc('Could not read the workbook','off');banner('Could not read the workbook: '+esc((e&&(e.message||e.code))||e)+' (step: '+esc(window.__step)+'). Press Refresh to try again.',true);})
-  .then(function(){loading=false;rb.disabled=false;});
+    if(!watching){watching=true;run('watching for changes',function(ctx){ctx.workbook.worksheets.getItem(name).onChanged.add(onChange);return ctx.sync();},20000).catch(function(){});}
+  }).catch(function(e){setSrc('Could not read the workbook','off');banner('Could not read the workbook: '+esc((e&&(e.message||e.code))||e)+' (step: '+esc(window.__step)+'). Press Refresh to try again.',true);toast('Could not read the workbook: '+((e&&e.message)||e),'err');})
+  .then(function(){clearInterval(tick);loading=false;rb.disabled=false;});
 }
 function onChange(){clearTimeout(deb);deb=setTimeout(function(){readExcel(true);},1200);return Promise.resolve();}
 function startPolling(){clearInterval(pollT);pollT=setInterval(function(){if(!document.hidden)readExcel(true);},20000);}
@@ -639,7 +644,7 @@ function onParentMsg(arg){
 
 window.addEventListener('error',function(e){banner('Dashboard error: '+esc(e.message)+' (step: '+esc(window.__step)+')',true);});
 window.addEventListener('unhandledrejection',function(e){var r=e.reason;banner('Dashboard error: '+esc((r&&(r.message||r.code))||r)+' (step: '+esc(window.__step)+')',true);});
-setTimeout(function(){if(!ALL.length&&$('banner').hidden){banner('Still loading after 20 seconds. Step: <b>'+esc(window.__step)+'</b>. Send a screenshot of this message.',true);}},20000);
+setTimeout(function(){if(!ALL.length&&$('banner').hidden){banner('Still loading after 20 seconds. Step: <b>'+esc(window.__step)+'</b>. Send a screenshot of this message.',true);toast('Still loading: '+window.__step,'err');}},20000);
 if(window.Chart){Chart.defaults.font.family='"Segoe UI",system-ui,sans-serif';}
 if(EMBED){$('refBtn').onclick=function(){ingest(EMBED.rows,EMBED.src,true);toast('Reloaded','ok');};ingest(EMBED.rows,EMBED.src,true);}
 else if(window.Office&&Office.onReady){
